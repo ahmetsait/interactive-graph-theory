@@ -1,0 +1,72 @@
+{
+	"$schema": "https://json.schemastore.org/web-manifest-combined.json",
+	"name": "Graph Theory",
+	"short_name": "Graph Theory",
+	"start_url": ".",
+	"display": "standalone",
+	"background_color": "#fafafa",
+	"theme_color": "#fafafa",
+	"description": "Interactive graph theory tool.",
+	"icons": [
+		{
+			"src": "favicon/favicon-blue-16.png",
+			"sizes": "16x16",
+			"type": "image/png"
+		},
+		{
+			"src": "favicon/favicon-blue-32.png",
+			"sizes": "32x32",
+			"type": "image/png"
+		},
+		{
+			"src": "favicon/favicon-blue-48.png",
+			"sizes": "48x48",
+			"type": "image/png"
+		},
+		{
+			"src": "favicon/favicon-blue-64.png",
+			"sizes": "64x64",
+			"type": "image/png"
+		},
+		{
+			"src": "favicon/favicon-blue-72.png",
+			"sizes": "72x72",
+			"type": "image/png"
+		},
+		{
+			"src": "favicon/favicon-blue-96.png",
+			"sizes": "96x96",
+			"type": "image/png"
+		},
+		{
+			"src": "favicon/favicon-blue-128.png",
+			"sizes": "128x128",
+			"type": "image/png"
+		},
+		{
+			"src": "favicon/favicon-blue-150.png",
+			"sizes": "150x150",
+			"type": "image/png"
+		},
+		{
+			"src": "favicon/favicon-blue-180.png",
+			"sizes": "180x180",
+			"type": "image/png"
+		},
+		{
+			"src": "favicon/favicon-blue-192.png",
+			"sizes": "192x192",
+			"type": "image/png"
+		},
+		{
+			"src": "favicon/favicon-blue-256.png",
+			"sizes": "256x256",
+			"type": "image/png"
+		},
+		{
+			"src": "favicon/favicon-blue-512.png",
+			"sizes": "512x512",
+			"type": "image/png"
+		}
+	]
+}
