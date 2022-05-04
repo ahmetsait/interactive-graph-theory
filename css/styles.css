@@ -1,0 +1,166 @@
+html {
+	height: 100%;
+	overflow: hidden;
+}
+
+body {
+	font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
+	height: 100%;
+	margin: 0;
+	line-height: 1.5;
+	tab-size: 4;
+	display: flex;
+	flex-flow: column;
+	overflow: hidden;
+}
+
+a {
+	color: #0366d6;
+	text-decoration: none;
+}
+
+a:visited {
+	color: #0366d6;
+}
+
+a:hover {
+	text-decoration: underline;
+}
+
+.noselect {
+	user-select: none;
+}
+
+/* Container */
+
+.container {
+	max-width: 800px;
+	margin-right: auto;
+	margin-left: auto;
+	padding: 0px 30px;
+}
+
+.clearfix:after {
+	content: "";
+	display: table;
+	clear: both;
+}
+
+/* Header */
+
+.site-header {
+	border-top: 5px solid #424242;
+	border-bottom: 1px solid #e8e8e8;
+  flex-grow: 0;
+  flex-shrink: 1;
+  flex-basis: auto;
+}
+
+.header-flex {
+	display: flex;
+	justify-content: space-between;
+	flex-wrap: wrap;
+}
+
+.site-title {
+	vertical-align: middle;
+}
+
+.site-name {
+	font-size: 32px;
+	font-weight: 300;
+	font-variant: small-caps;
+}
+
+.site-description {
+	font-size: 24px;
+	font-weight: 300;
+	margin-bottom: 5px;
+	color: gray;
+}
+
+.site-nav {
+	margin-left: auto;
+	align-self: center;
+	vertical-align: middle;
+}
+
+.site-nav li {
+	display: inline-block;
+	text-decoration: inherit;
+}
+
+.site-nav li:not(:first-child) {
+	margin-left: 20px;
+}
+
+@media screen and (max-width: 600px) {
+	.site-title {
+		text-align: center;
+	}
+	.site-nav {
+		text-align: center;
+		margin: 0px;
+	}
+	.header-flex {
+		 flex-direction: column;
+	}
+}
+
+/* Page */
+
+.page-content {
+	height: 100%;
+  flex-grow: 1;
+  flex-shrink: 1;
+  flex-basis: auto;
+}
+
+/* Footer */
+
+.site-footer {
+	border-color: lightgray;
+	border-style: solid;
+	border-width: 1px 0px;
+	background-color: #eee;
+	padding: 15px 0;
+	flex-grow: 0;
+	flex-shrink: 1;
+}
+
+.footer-content {
+	text-align: center;
+	font-size: 16px;
+	color: #595959;
+}
+
+.footer-content .roundbox {
+	display: inline-block;
+	width: 40px;
+	height: 40px;
+	margin: 4px;
+	background-color: white;
+	border-radius: 25%;
+	fill: #595959;
+	text-align: center;
+	vertical-align: middle;
+}
+
+.footer-content .roundbox svg {
+	width: 24px;
+	height: 24px;
+	margin: 8px;
+}
+
+#canvas {
+	display: block;
+	width: 100%;
+	height: 100%;
+	background-color: azure;
+	/*
+	image-rendering: -moz-crisp-edges;
+	image-rendering: -webkit-crisp-edges;
+	image-rendering: pixelated;
+	image-rendering: crisp-edges;
+	*/
+}
