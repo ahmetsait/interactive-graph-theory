@@ -28,6 +28,9 @@ new ResizeObserver(resize).observe(canvas);
 canvas.addEventListener('mousedown', mousedown);
 canvas.addEventListener('mousemove', mousemove);
 canvas.addEventListener('mouseup', mouseup);
+canvas.addEventListener('touchstart', touchstart);
+canvas.addEventListener('touchmove', touchmove);
+canvas.addEventListener('touchend', touchend);
 canvas.addEventListener('contextmenu', event => event.preventDefault());
 
 const nodeRadius = 12.5;
@@ -38,6 +41,7 @@ let edges = [];
 
 let firstNode = undefined;
 let airEdge = undefined;
+let nodeDeleted = false;
 
 function getRelativePosition(event) {
 
@@ -49,9 +53,20 @@ function getRelativePosition(event) {
 	return { x, y };
 }
 
+function lineIntersection(line1p1, line1p2, line2p1, line2p2) {
+	let det, gamma, lambda;
+	det = (line1p2.x - line1p1.x) * (line2p2.y - line2p1.y) - (line2p2.x - line2p1.x) * (line1p2.y - line1p1.y);
+	if (det === 0) {
+		return false;
+	} else {
+		lambda = ((line2p2.y - line2p1.y) * (line2p2.x - line1p1.x) + (line2p1.x - line2p2.x) * (line2p2.y - line1p1.y)) / det;
+		gamma = ((line1p1.y - line1p2.y) * (line2p2.x - line1p1.x) + (line1p2.x - line1p1.x) * (line2p2.y - line1p1.y)) / det;
+		return (0 < lambda && lambda < 1) && (0 < gamma && gamma < 1);
+	}
+}
+
 function mousedown(event) {
 	let point = getRelativePosition(event);
-
 	if (event.buttons === 1) {
 		for (let i = 0; i < nodes.length; i++) {
 			let node = nodes[i];
@@ -60,13 +75,12 @@ function mousedown(event) {
 				break;
 			}
 		}
-
+		// Node add
 		if (firstNode === undefined)
 			nodes.push({ x: point.x, y: point.y, color: randHSLColor(50) });
 	}
+	// Node delete
 	else if (event.buttons === 2 && !event.shiftKey) {
-		console.log(event);
-		debugger;
 		let selected = undefined;
 		for (let i = 0; i < nodes.length; i++) {
 			let node = nodes[i];
@@ -89,8 +103,7 @@ function mousedown(event) {
 					edge.secondNode--;
 			}
 			nodes.splice(selected, 1);
-			console.log(nodes);
-			console.log(edges);
+			nodeDeleted = true;
 		}
 	}
 }
@@ -99,6 +112,7 @@ let lastMousePosition = undefined;
 
 function mousemove(event) {
 	let pos = getRelativePosition(event);
+	// Temp edge
 	if (event.buttons === 1) {
 		if (firstNode !== undefined) {
 			if (event.shiftKey && airEdge === undefined) {
@@ -110,7 +124,8 @@ function mousemove(event) {
 		}
 	}
 
-	if (event.buttons === 2) {
+	// Edge delete
+	if (event.buttons === 2 && !nodeDeleted) {
 		if (lastMousePosition !== undefined) {
 			for (let i = edges.length - 1; i >= 0; i--) {
 				const edge = edges[i];
@@ -125,18 +140,6 @@ function mousemove(event) {
 	lastMousePosition = pos;
 }
 
-function lineIntersection(line1p1, line1p2, line2p1, line2p2) {
-	let det, gamma, lambda;
-	det = (line1p2.x - line1p1.x) * (line2p2.y - line2p1.y) - (line2p2.x - line2p1.x) * (line1p2.y - line1p1.y);
-	if (det === 0) {
-		return false;
-	} else {
-		lambda = ((line2p2.y - line2p1.y) * (line2p2.x - line1p1.x) + (line2p1.x - line2p2.x) * (line2p2.y - line1p1.y)) / det;
-		gamma = ((line1p1.y - line1p2.y) * (line2p2.x - line1p1.x) + (line1p2.x - line1p1.x) * (line2p2.y - line1p1.y)) / det;
-		return (0 < lambda && lambda < 1) && (0 < gamma && gamma < 1);
-	}
-}
-
 function mouseup(event) {
 	if (firstNode === undefined) {
 		return;
@@ -147,17 +150,145 @@ function mouseup(event) {
 
 	for (let i = 0; i < nodes.length; i++) {
 		let node = nodes[i];
-		if ((point.x - node.x) ** 2 + (point.y - node.y) ** 2 < nodeRadius ** 2) {
+		if ((point.x - node.x) ** 2 + (point.y - node.y) ** 2 < (nodeRadius * 2) ** 2) {
 			secondNode = i;
 			break;
 		}
 	}
+	// Edge add
 	if (firstNode !== undefined && secondNode !== undefined) {
 		if (!edges.some((edge) => edge.firstNode === firstNode && edge.secondNode === secondNode))
 			edges.push({ firstNode, secondNode });
 	}
 	firstNode = undefined;
 	airEdge = undefined;
+	nodeDeleted = false;
+}
+
+let lastTouched = undefined;
+
+function touchstart(event){
+	event.preventDefault();
+	if (lastTouched === undefined)
+		lastTouched = event.timeStamp;
+	let deltaTime = event.timeStamp - lastTouched;
+	lastTouched = event.timeStamp;
+	let rect = event.target.getBoundingClientRect();
+
+	let x = event.touches[0].clientX - rect.left;
+	let y = event.touches[0].clientY - rect.top;
+
+	for (let i = 0; i < nodes.length; i++) {
+		let node = nodes[i];
+		if ((x - node.x) ** 2 + (y - node.y) ** 2 < (nodeRadius * 2) ** 2) {
+			firstNode = i;
+			break;
+		}
+	}
+
+	// Node delete
+	if (deltaTime < 200) { // 200ms
+		let selected = undefined;
+		for (let i = 0; i < nodes.length; i++) {
+			let node = nodes[i];
+			if ((x - node.x) ** 2 + (y - node.y) ** 2 < (nodeRadius * 2) ** 2) {
+				selected = i;
+				break;
+			}
+		}
+		if (selected !== undefined) {
+			for (let i = edges.length - 1; i >= 0; i--) {
+				const edge = edges[i];
+				if (edge.firstNode === selected || edge.secondNode === selected)
+					edges.splice(i, 1);
+			}
+			for (let i = edges.length - 1; i >= 0; i--) {
+				const edge = edges[i];
+				if (edge.firstNode > selected)
+					edge.firstNode--;
+				if (edge.secondNode > selected)
+					edge.secondNode--;
+			}
+			nodes.splice(selected, 1);
+			nodeDeleted = true;
+		}
+	}
+	lastMousePosition = {x:x, y:y};
+}
+
+function touchmove(event){
+	
+	if (nodeDeleted) return;
+	if (lastTouched === undefined)
+		lastTouched = event.timeStamp;
+
+	let deltaTime = event.timeStamp - lastTouched;
+	let rect = event.target.getBoundingClientRect();
+
+	let x = event.changedTouches[0].clientX - rect.left;
+	let y = event.changedTouches[0].clientY - rect.top;
+
+	// Node move and temp edge 
+	if (firstNode !== undefined) {
+		if (deltaTime > 200 && airEdge === undefined) {
+			nodes[firstNode].x = x;
+			nodes[firstNode].y = y;
+		}
+		else
+			airEdge = {x:x, y:y};
+	}
+
+	// Edge delete
+	if (deltaTime > 500 && firstNode === undefined) {
+		if (lastMousePosition !== undefined) {
+			for (let i = edges.length - 1; i >= 0; i--) {
+				const edge = edges[i];
+				const node1 = nodes[edge.firstNode];
+				const node2 = nodes[edge.secondNode];
+				if (lineIntersection(lastMousePosition, {x:x, y:y}, node1, node2)) {
+					edges.splice(i, 1);
+				}
+			}
+		}
+	}
+	lastMousePosition = {x:x, y:y};
+}
+
+function touchend(event){
+	if (lastTouched === undefined)
+		lastTouched = event.timeStamp;
+	let deltaTime = event.timeStamp - lastTouched;
+	
+	let rect = event.target.getBoundingClientRect();
+
+	let x = event.changedTouches[0].clientX - rect.left;
+	let y = event.changedTouches[0].clientY - rect.top;
+	let secondNode = undefined;
+
+
+
+	for (let i = 0; i < nodes.length; i++) {
+		let node = nodes[i];
+		if ((x - node.x) ** 2 + (y - node.y) ** 2 < (nodeRadius * 2) ** 2) {
+			secondNode = i;
+			break;
+		}
+	}
+	
+	// Node add
+	if (firstNode === undefined && deltaTime < 500 && secondNode === undefined) {
+		nodes.push({ x: x, y: y, color: randHSLColor(50) });
+		return;
+	}
+
+	// Edge add
+	if (firstNode !== undefined && secondNode !== undefined) {
+		if (!edges.some((edge) => edge.firstNode === firstNode && edge.secondNode === secondNode))
+			edges.push({ firstNode, secondNode });
+	}
+	firstNode = undefined;
+	airEdge = undefined;
+	nodeDeleted = false;
 }
 
 function load() {
