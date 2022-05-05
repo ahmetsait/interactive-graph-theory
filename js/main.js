@@ -40,6 +40,7 @@ let nodes = [];
 let edges = [];
 
 let firstNode = undefined;
+let selectedNode = undefined;
 let airEdge = undefined;
 let nodeDeleted = false;
 
@@ -99,12 +100,15 @@ function mousedown(event) {
 			let node = nodes[i];
 			if ((point.x - node.x) ** 2 + (point.y - node.y) ** 2 < (nodeRadius * 2) ** 2) {
 				firstNode = i;
+				selectedNode = i;
 				break;
 			}
 		}
 		// Node add
-		if (firstNode === undefined)
+		if (firstNode === undefined){
 			nodes.push({ x: point.x, y: point.y, color: randHSLColor(50), name: defaultName++});
+			selectedNode = undefined;
+		}
 	}
 	// Node delete
 	else if (event.buttons === 2 && !event.shiftKey) {
@@ -131,6 +135,7 @@ function mousedown(event) {
 			}
 			nodes.splice(selected, 1);
 			nodeDeleted = true;
+			selectedNode = undefined;
 		}
 	}
 }
@@ -146,8 +151,10 @@ function mousemove(event) {
 				nodes[firstNode].x = pos.x;
 				nodes[firstNode].y = pos.y;
 			}
-			else
+			else{
 				airEdge = pos;
+				selectedNode = undefined;
+			}
 		}
 	}
 
@@ -209,6 +216,7 @@ function touchstart(event){
 		let node = nodes[i];
 		if ((x - node.x) ** 2 + (y - node.y) ** 2 < (nodeRadius * 2) ** 2) {
 			firstNode = i;
+			selectedNode = i;
 			break;
 		}
 	}
@@ -238,6 +246,7 @@ function touchstart(event){
 			}
 			nodes.splice(selected, 1);
 			nodeDeleted = true;
+			selectedNode = undefined;
 		}
 	}
 	lastMousePosition = {x:x, y:y};
@@ -261,8 +270,10 @@ function touchmove(event){
 			nodes[firstNode].x = x;
 			nodes[firstNode].y = y;
 		}
-		else
+		else{
 			airEdge = {x:x, y:y};
+			selectedNode = undefined;
+		}
 	}
 
 	// Edge delete
@@ -305,6 +316,7 @@ function touchend(event){
 	// Node add
 	if (firstNode === undefined && deltaTime < 500 && secondNode === undefined) {
 		nodes.push({ x: x, y: y, color: randHSLColor(50), name: defaultName++});
+		selectedNode = undefined;
 		return;
 	}
 
@@ -370,12 +382,23 @@ function draw(timestamp) {
 		ctx.beginPath();
 		ctx.arc(node.x, node.y, nodeRadius, 0, 360);
 		ctx.fill();
-		ctx.font = "bold 15px Arial";
+		ctx.font = "bold 15px Arial sans-serif";
 		ctx.textBaseline = "middle";
 		ctx.textAlign = "center";
 		ctx.fillStyle = invertColor(ctx.fillStyle);
 		ctx.fillText(node.name, node.x, node.y);
 	});
+	if (selectedNode != undefined){
+		ctx.save()
+		ctx.beginPath();
+		ctx.lineWidth = 3;
+		ctx.strokeStyle = nodes[selectedNode].color;
+		ctx.strokeStyle = invertColor(ctx.strokeStyle)
+		ctx.arc(nodes[selectedNode].x, nodes[selectedNode].y, nodeRadius, 0, 360);
+		ctx.stroke();
+		ctx.restore()
+	}
+	
 
 	ctx.restore();
 
