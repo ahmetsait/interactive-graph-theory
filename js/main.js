@@ -32,9 +32,9 @@ new ResizeObserver(resize).observe(canvas);
 canvas.addEventListener('mousedown', mousedown);
 canvas.addEventListener('mousemove', mousemove);
 canvas.addEventListener('mouseup', mouseup);
-canvas.addEventListener('touchstart', touchstart, { passive: false });
-canvas.addEventListener('touchmove', touchmove, { passive: false });
-canvas.addEventListener('touchend', touchend, { passive: false });
+// canvas.addEventListener('touchstart', touchstart, { passive: false });
+// canvas.addEventListener('touchmove', touchmove, { passive: false });
+// canvas.addEventListener('touchend', touchend, { passive: false });
 canvas.addEventListener('contextmenu', event => event.preventDefault());
 
 let nodes = [];
@@ -49,6 +49,8 @@ const State = {
 	DeleteEdge: 5,
 	BoxSelect: 6,
 	ScanSelect: 7,
+	Pan: 8,
+	Zoom: 9,
 };
 
 let state = State.None;
@@ -129,7 +131,7 @@ let lastMouseDownNodeIndex = undefined;
 function mousedown(event) {
 	let mousePosition = getRelativePosition(event.target, event.clientX, event.clientY);
 	let mouseDownNodeIndex = getNodeIndexAtPosition(nodes, mousePosition);
-
+	
 	switch (state) {
 		case State.None:
 			if (event.buttons === 1) {
@@ -247,7 +249,7 @@ const doubleTapTimeout = 300;	// ms
 const touchHoldTimeout = 300;	// ms
 
 //let currentTouches = new Map();
-
+/*
 function touchstart(event) {
 	event.preventDefault();
 
@@ -399,7 +401,7 @@ function touchend(event) {
 	airEdge = undefined;
 	nodeDeleted = false;
 }
-
+*/
 function load() {
 	resize();
 	window.requestAnimationFrame(draw);
@@ -469,14 +471,14 @@ function draw(timestamp) {
 
 		ctx.lineWidth = 3;
 
-		if (selectedNodeIndices !== undefined) {
-			let selectedNode = nodes[selectedNodeIndices];
+		selectedNodeIndices.forEach(nodeIndex => {
+			let selectedNode = nodes[nodeIndex];
 			ctx.beginPath();
 			ctx.strokeStyle = selectedNode.color;
 			ctx.strokeStyle = 'gray'/*invertColor(ctx.strokeStyle)*/;
 			ctx.arc(selectedNode.x, selectedNode.y, selectedNode.radius, 0, 360);
 			ctx.stroke();
-		}
+		});
 	}
 	finally {
 		ctx.restore();
