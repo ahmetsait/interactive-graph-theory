@@ -43,6 +43,8 @@ let firstNode = undefined;
 let airEdge = undefined;
 let nodeDeleted = false;
 
+let defaultName = 1;
+
 function getRelativePosition(event) {
 
 	let rect = event.target.getBoundingClientRect();
@@ -65,6 +67,31 @@ function lineIntersection(line1p1, line1p2, line2p1, line2p2) {
 	}
 }
 
+function invertColor(hex) {
+    if (hex.indexOf('#') === 0) {
+        hex = hex.slice(1);
+    }
+    // convert 3-digit hex to 6-digits.
+    if (hex.length === 3) {
+        hex = hex[0] + hex[0] + hex[1] + hex[1] + hex[2] + hex[2];
+    }
+    if (hex.length !== 6) {
+        throw new Error('Invalid HEX color.');
+    }
+    // invert color components
+    var r = (255 - parseInt(hex.slice(0, 2), 16)).toString(16),
+        g = (255 - parseInt(hex.slice(2, 4), 16)).toString(16),
+        b = (255 - parseInt(hex.slice(4, 6), 16)).toString(16);
+    // pad each with zeros and return
+    return '#' + padZero(r) + padZero(g) + padZero(b);
+}
+
+function padZero(str, len) {
+    len = len || 2;
+    var zeros = new Array(len).join('0');
+    return (zeros + str).slice(-len);
+}
+
 function mousedown(event) {
 	let point = getRelativePosition(event);
 	if (event.buttons === 1) {
@@ -77,7 +104,7 @@ function mousedown(event) {
 		}
 		// Node add
 		if (firstNode === undefined)
-			nodes.push({ x: point.x, y: point.y, color: randHSLColor(50) });
+			nodes.push({ x: point.x, y: point.y, color: randHSLColor(50), name: defaultName++});
 	}
 	// Node delete
 	else if (event.buttons === 2 && !event.shiftKey) {
@@ -277,7 +304,7 @@ function touchend(event){
 	
 	// Node add
 	if (firstNode === undefined && deltaTime < 500 && secondNode === undefined) {
-		nodes.push({ x: x, y: y, color: randHSLColor(50) });
+		nodes.push({ x: x, y: y, color: randHSLColor(50), name: defaultName++});
 		return;
 	}
 
@@ -326,21 +353,28 @@ function draw(timestamp) {
 		ctx.restore();
 		ctx.stroke();
 	}
-
+	
 	edges.forEach(edge => {
-		ctx.beginPath();
-		ctx.save();
-		ctx.moveTo(nodes[edge.firstNode].x, nodes[edge.firstNode].y);
-		ctx.lineTo(nodes[edge.secondNode].x, nodes[edge.secondNode].y);
-		ctx.restore();
-		ctx.stroke();
+		if (nodes[edge.firstNode] !== undefined && nodes[edge.secondNode] !== undefined ){
+			ctx.beginPath();
+			ctx.save();
+			ctx.moveTo(nodes[edge.firstNode].x, nodes[edge.firstNode].y);
+			ctx.lineTo(nodes[edge.secondNode].x, nodes[edge.secondNode].y);
+			ctx.restore();
+			ctx.stroke();
+		}
 	});
-
 	nodes.forEach(node => {
+		
 		ctx.fillStyle = node.color;
 		ctx.beginPath();
 		ctx.arc(node.x, node.y, nodeRadius, 0, 360);
 		ctx.fill();
+		ctx.font = "bold 15px Arial";
+		ctx.textBaseline = "middle";
+		ctx.textAlign = "center";
+		ctx.fillStyle = invertColor(ctx.fillStyle);
+		ctx.fillText(node.name, node.x, node.y);
 	});
 
 	ctx.restore();
