@@ -1,20 +1,17 @@
 "use strict";
 
-CanvasRenderingContext2D.prototype.clear = function (preserveTransform) {
-	if (preserveTransform) {
-		this.save();
+CanvasRenderingContext2D.prototype.clear = function () {
+	this.save();
+	try {
 		this.setTransform(1, 0, 0, 1, 0, 0);
-	}
-
-	this.fillStyle = 'azure';
-	this.fillRect(0, 0, this.canvas.width, this.canvas.height);
-
-	if (preserveTransform) {
+		this.fillStyle = 'azure';
+		this.fillRect(0, 0, this.canvas.width, this.canvas.height);
+	} finally {
 		this.restore();
 	}
 };
 
-function randHSLColor(lightness) {
+function randomHSLColor(lightness) {
 	return `hsl(${Math.floor(Math.random() * 360)},${Math.floor(Math.random() * 50 + 25)}%,${lightness}%)`;
 }
 
@@ -32,6 +29,7 @@ new ResizeObserver(resize).observe(canvas);
 canvas.addEventListener('mousedown', mousedown);
 canvas.addEventListener('mousemove', mousemove);
 canvas.addEventListener('mouseup', mouseup);
+canvas.addEventListener('wheel', wheel);
 // canvas.addEventListener('touchstart', touchstart, { passive: false });
 // canvas.addEventListener('touchmove', touchmove, { passive: false });
 // canvas.addEventListener('touchend', touchend, { passive: false });
@@ -55,6 +53,9 @@ const State = {
 
 let state = State.None;
 
+// Camera transform
+let offsetX = 0, offsetY = 0;
+
 let selectedNodeIndices = new Set();
 let hoveringNodeIndex = undefined;
 
@@ -71,31 +72,6 @@ function lineIntersection(line1p1, line1p2, line2p1, line2p2) {
 		gamma = ((line1p1.y - line1p2.y) * (line2p2.x - line1p1.x) + (line1p2.x - line1p1.x) * (line2p2.y - line1p1.y)) / det;
 		return (0 < lambda && lambda < 1) && (0 < gamma && gamma < 1);
 	}
-}
-
-function invertColor(hex) {
-	if (hex.indexOf('#') === 0) {
-		hex = hex.slice(1);
-	}
-	// convert 3-digit hex to 6-digits.
-	if (hex.length === 3) {
-		hex = hex[0] + hex[0] + hex[1] + hex[1] + hex[2] + hex[2];
-	}
-	if (hex.length !== 6) {
-		throw new Error('Invalid HEX color.');
-	}
-	// invert color components
-	let r = (255 - parseInt(hex.slice(0, 2), 16)).toString(16),
-		g = (255 - parseInt(hex.slice(2, 4), 16)).toString(16),
-		b = (255 - parseInt(hex.slice(4, 6), 16)).toString(16);
-	// pad each with zeros and return
-	return '#' + padZero(r) + padZero(g) + padZero(b);
-}
-
-function padZero(str, len) {
-	len = len || 2;
-	let zeros = new Array(len).join('0');
-	return (zeros + str).slice(-len);
 }
 
 function getNodeIndexAtPosition(nodes, position) {
@@ -118,9 +94,18 @@ function getNodeIndexAtPosition(nodes, position) {
 	return closestNodeIndex;
 }
 
+function getNodesIndicesInBox(nodes, box) {
+	let result = [];
+	nodes.forEach((node, index) => {
+		if (node.x < box.right && node.x > box.left && node.y < box.bottom && node.y > box.top)
+			result.push(index);
+	});
+	return result;
+}
+
 function getRelativePosition(element, x, y) {
 	let rect = element.getBoundingClientRect();
-	return { x: x - rect.left, y: y - rect.top };
+	return { x: x - rect.left - offsetX, y: y - rect.top - offsetY };
 }
 
 let lastMousePosition = undefined;
@@ -134,27 +119,45 @@ function mousedown(event) {
 	
 	switch (state) {
 		case State.None:
-			if (event.buttons === 1) {
-				if (mouseDownNodeIndex === undefined) {
-					if (event.shiftKey) {
+			if (event.buttons === 1) { // Left click
+				if (event.shiftKey && event.ctrlKey) {
+					if (mouseDownNodeIndex !== undefined) {
+						selectedNodeIndices.add(mouseDownNodeIndex);
+						state = State.MoveNode;
+					}
+				} else if (event.shiftKey) {
+					if (mouseDownNodeIndex === undefined) {
 						state = State.BoxSelect;
 					} else {
-						currentNodeColor = randHSLColor(50);
-						state = State.DrawNode;
+						selectedNodeIndices.add(mouseDownNodeIndex);
+						state = State.ScanSelect;
 					}
 				} else if (event.ctrlKey) {
 					selectedNodeIndices.clear();
-					selectedNodeIndices.add(mouseDownNodeIndex);
-					state = State.MoveNode;
-				} else if (event.shiftKey) {
-					state = State.ScanSelect;
+					if (mouseDownNodeIndex !== undefined) {
+						selectedNodeIndices.add(mouseDownNodeIndex);
+						state = State.MoveNode;
+					}
+				} else if (event.altKey) {
+					state = State.Pan;
+				} else {
+					if (mouseDownNodeIndex === undefined) {
+						currentNodeColor = randomHSLColor(50);
+						state = State.DrawNode;
+					} else {
+						state = State.DrawEdge;
+					}
 				}
-			} else if (event.buttons === 2 && !event.shiftKey) {
+			}
+			else if (event.buttons === 2 && !event.shiftKey) { // Right click
 				// Shift key disables context menu prevention on Firefox
 				if (mouseDownNodeIndex !== undefined)
 					state = State.DeleteNode;
 				else
 					state = State.DeleteEdge;
+			}
+			else if (event.buttons === 4) { // Middle click
+				state = State.Pan;
 			}
 			break;
 	}
@@ -173,6 +176,14 @@ function mousemove(event) {
 			if (lastMouseDownNodeIndex !== undefined && (nodes[lastMouseDownNodeIndex].x - mousePosition.x) ** 2 + (nodes[lastMouseDownNodeIndex].y - mousePosition.y) ** 2 > nodes[lastMouseDownNodeIndex].radius ** 2) {
 				state = State.DrawEdge;
 			}
+			break;
+		case State.Pan:
+			offsetX += mousePosition.x - lastMousePosition.x;
+			offsetY += mousePosition.y - lastMousePosition.y;
+			break;
+		case State.ScanSelect:
+			if (hoveringNodeIndex !== undefined)
+				selectedNodeIndices.add(hoveringNodeIndex);
 			break;
 		case State.MoveNode:
 			selectedNodeIndices.forEach(nodeIndex => {
@@ -193,6 +204,7 @@ function mousemove(event) {
 					if (edge.nodeIndex2 > hoveringNodeIndex)
 						edge.nodeIndex2--;
 				}
+				selectedNodeIndices.delete(hoveringNodeIndex);
 				nodes.splice(hoveringNodeIndex, 1);
 			}
 			break;
@@ -219,7 +231,16 @@ function mouseup(event) {
 
 	switch (state) {
 		case State.None:
-			selectedNodeIndices = mouseUpNodeIndex;
+			// TODO
+			break;
+		case State.BoxSelect:
+			const box = {
+				left: Math.min(lastMouseDownPosition.x, lastMousePosition.x),
+				top: Math.min(lastMouseDownPosition.y, lastMousePosition.y),
+				right: Math.max(lastMouseDownPosition.x, lastMousePosition.x),
+				bottom: Math.max(lastMouseDownPosition.y, lastMousePosition.y),
+			};
+			getNodesIndicesInBox(nodes, box).forEach(nodeIndex => selectedNodeIndices.add(nodeIndex));
 			break;
 		case State.DrawNode:
 			let nodeRadius = Math.sqrt(
@@ -245,11 +266,15 @@ function mouseup(event) {
 	state = State.None;
 }
 
+function wheel(event) {
+	
+}
+
 const doubleTapTimeout = 300;	// ms
 const touchHoldTimeout = 300;	// ms
 
-//let currentTouches = new Map();
-/*
+let currentTouches = new Map();
+
 function touchstart(event) {
 	event.preventDefault();
 
@@ -401,7 +426,7 @@ function touchend(event) {
 	airEdge = undefined;
 	nodeDeleted = false;
 }
-*/
+
 function load() {
 	resize();
 	window.requestAnimationFrame(draw);
@@ -424,6 +449,7 @@ function draw(timestamp) {
 	ctx.save();
 
 	try {
+		ctx.translate(offsetX, offsetY);
 		ctx.scale(window.devicePixelRatio, window.devicePixelRatio);
 		ctx.clear();
 
@@ -455,7 +481,7 @@ function draw(timestamp) {
 			ctx.beginPath();
 			ctx.arc(node.x, node.y, node.radius, 0, 360);
 			ctx.fill();
-			ctx.fillStyle = 'white'/*invertColor(ctx.fillStyle)*/;
+			ctx.fillStyle = 'white';
 			ctx.fillText(node.name, node.x, node.y);
 		});
 
@@ -470,15 +496,22 @@ function draw(timestamp) {
 		}
 
 		ctx.lineWidth = 3;
-
+		ctx.strokeStyle = 'gray';
+		
 		selectedNodeIndices.forEach(nodeIndex => {
 			let selectedNode = nodes[nodeIndex];
 			ctx.beginPath();
-			ctx.strokeStyle = selectedNode.color;
-			ctx.strokeStyle = 'gray'/*invertColor(ctx.strokeStyle)*/;
 			ctx.arc(selectedNode.x, selectedNode.y, selectedNode.radius, 0, 360);
 			ctx.stroke();
 		});
+
+		ctx.lineWidth = 1;
+		ctx.strokeStyle = 'gray';
+		ctx.setLineDash([2, 2]);
+
+		if (state === State.BoxSelect && lastMouseDownPosition !== undefined) {
+			ctx.strokeRect(lastMouseDownPosition.x, lastMouseDownPosition.y, lastMousePosition.x - lastMouseDownPosition.x, lastMousePosition.y - lastMouseDownPosition.y);
+		}
 	}
 	finally {
 		ctx.restore();
