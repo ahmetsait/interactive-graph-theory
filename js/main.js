@@ -1,6 +1,7 @@
 "use strict";
 
-CanvasRenderingContext2D.prototype.clear = function () {
+CanvasRenderingContext2D.prototype.clear = function ()
+{
 	this.save();
 	try {
 		this.setTransform(1, 0, 0, 1, 0, 0);
@@ -11,7 +12,32 @@ CanvasRenderingContext2D.prototype.clear = function () {
 	}
 };
 
-function randomHSLColor(lightness) {
+function removeItem(array, item)
+{
+	let i = array.indexOf(item);
+	if (i !== -1)
+	{
+		array.splice(i, 1);
+		return true;
+	}
+	else
+		return false;
+}
+
+function addItemUnique(array, item)
+{
+	let i = array.indexOf(item);
+	if (i === -1)
+	{
+		array.push(item);
+		return true;
+	}
+	else
+		return false;
+}
+
+function randomHSLColor(lightness)
+{
 	return `hsl(${Math.floor(Math.random() * 360)},${Math.floor(Math.random() * 50 + 25)}%,${lightness}%)`;
 }
 
@@ -32,9 +58,14 @@ canvas.addEventListener('mousedown', mousedown);
 canvas.addEventListener('mousemove', mousemove);
 canvas.addEventListener('mouseup', mouseup);
 canvas.addEventListener('wheel', wheel);
-// canvas.addEventListener('touchstart', touchstart, { passive: false });
-// canvas.addEventListener('touchmove', touchmove, { passive: false });
-// canvas.addEventListener('touchend', touchend, { passive: false });
+if (touchEnabled)
+{
+	console.log("Touch enabled.");
+	canvas.addEventListener('touchstart', touchstart, { passive: false });
+	canvas.addEventListener('touchmove', touchmove, { passive: false });
+	canvas.addEventListener('touchend', touchend, { passive: false });
+	canvas.addEventListener('touchcancel', touchend, { passive: false });
+}
 canvas.addEventListener('contextmenu', event => event.preventDefault());
 
 let nodes = [];
@@ -51,6 +82,7 @@ const State = {
 	ScanSelect: 7,
 	Pan: 8,
 	Zoom: 9,
+	TouchCameraControl: 10, // TODO: Mixed pan+zoom+rotate
 };
 
 let state = State.None;
@@ -58,36 +90,48 @@ let state = State.None;
 // Camera transform
 let offsetX = 0, offsetY = 0;
 
-let selectedNodeIndices = new Set();
-let hoveringNodeIndex = undefined;
+let selectedNodeIndices = [];
+let mouseHoverNodeIndex = undefined;
 
 let currentNodeColor = undefined;
 let nameCounter = 1;
 
-function lineIntersection(line1p1, line1p2, line2p1, line2p2) {
+function lineIntersection(line1p1, line1p2, line2p1, line2p2)
+{
 	let det, gamma, lambda;
 	det = (line1p2.x - line1p1.x) * (line2p2.y - line2p1.y) - (line2p2.x - line2p1.x) * (line1p2.y - line1p1.y);
-	if (det === 0) {
+	if (det === 0)
+	{
 		return false;
-	} else {
+	}
+	else
+	{
 		lambda = ((line2p2.y - line2p1.y) * (line2p2.x - line1p1.x) + (line2p1.x - line2p2.x) * (line2p2.y - line1p1.y)) / det;
 		gamma = ((line1p1.y - line1p2.y) * (line2p2.x - line1p1.x) + (line1p2.x - line1p1.x) * (line2p2.y - line1p1.y)) / det;
 		return (0 < lambda && lambda < 1) && (0 < gamma && gamma < 1);
 	}
 }
 
-function getNodeIndexAtPosition(nodes, position) {
+function getNodeIndexAtPosition(nodes, position)
+{
 	let closestNodeIndex = undefined,
 		closestNodeX = undefined,
 		closestNodeY = undefined;
-	for (let i = 0; i < nodes.length; i++) {
-		let node = nodes[i];
-		let distance = (position.x - node.x) ** 2 + (position.y - node.y) ** 2;
-		if (distance < (node.radius + defaultNodeRadius) ** 2) {
+	for (let nodeIndex = 0; nodeIndex < nodes.length; nodeIndex++) 
+	{
+		let node = nodes[nodeIndex];
+		let distanceSqr = (position.x - node.x) ** 2 + (position.y - node.y) ** 2;
+		if (distanceSqr < (node.radius + defaultNodeRadius) ** 2)
+		{
 			if (closestNodeIndex === undefined)
-				closestNodeIndex = i;
-			else if (distance < (closestNodeX - node.x) ** 2 + (closestNodeY - node.y) ** 2) {
-				closestNodeIndex = i;
+			{
+				closestNodeIndex = nodeIndex;
+				closestNodeX = node.x;
+				closestNodeY = node.y;
+			}
+			else if (distanceSqr < (position.x - closestNodeX) ** 2 + (position.y - closestNodeY) ** 2)
+			{
+				closestNodeIndex = nodeIndex;
 				closestNodeX = node.x;
 				closestNodeY = node.y;
 			}
@@ -96,68 +140,160 @@ function getNodeIndexAtPosition(nodes, position) {
 	return closestNodeIndex;
 }
 
-function getNodesIndicesInBox(nodes, box) {
-	let result = [];
-	nodes.forEach((node, index) => {
+function getNodeIndicesInBox(box)
+{
+	let nodeIndices = [];
+	for (let nodeIndex = 0; nodeIndex < nodes.length; nodeIndex++)
+	{
+		let node = nodes[nodeIndex];
 		if (node.x < box.right && node.x > box.left && node.y < box.bottom && node.y > box.top)
-			result.push(index);
-	});
-	return result;
+			nodeIndices.push(nodeIndex);
+	}
+	return nodeIndices;
 }
 
-function getRelativePosition(element, x, y) {
+function getRelativePosition(element, x, y)
+{
 	let rect = element.getBoundingClientRect();
 	return { x: x - rect.left - offsetX, y: y - rect.top - offsetY };
 }
 
+function nodeRadiusCurve(radius)
+{
+	return Math.sqrt(radius) + defaultNodeRadius;
+}
+
+function clearAll()
+{
+	selectedNodeIndices = [];
+	edges = [];
+	nodes = [];
+	nameCounter = 0;
+}
+
+function moveNodes(deltaX, deltaY, nodeIndices)
+{
+	nodeIndices.forEach(nodeIndex => {
+		nodes[nodeIndex].x += deltaX;
+		nodes[nodeIndex].y += deltaY;
+	});
+}
+
+function deleteNodes(nodeIndices)
+{
+	nodeIndices.forEach(nodeIndex => deleteNode(nodeIndex));
+}
+
+function deleteNode(nodeIndex)
+{
+	for (let i = edges.length - 1; i >= 0; i--)
+	{
+		const edge = edges[i];
+		// Tear off edges before deleting node
+		if (edge.nodeIndex1 === nodeIndex || edge.nodeIndex2 === nodeIndex)
+			edges.splice(i, 1);
+		// Shift edge node indices to adjust
+		if (edge.nodeIndex1 > nodeIndex)
+			edge.nodeIndex1--;
+		if (edge.nodeIndex2 > nodeIndex)
+			edge.nodeIndex2--;
+	}
+	if (removeItem(selectedNodeIndices, nodeIndex))
+		for (let i = selectedNodeIndices.length - 1; i >= 0; i--)
+			if (selectedNodeIndices[i] > nodeIndex)
+				selectedNodeIndices[i]--; // Shift selected node indices to adjust
+	nodes.splice(nodeIndex, 1);
+}
+
+function cutEdges(scissorStart, scissorEnd)
+{
+	for (let i = edges.length - 1; i >= 0; i--)
+	{
+		const edge = edges[i];
+		const node1 = nodes[edge.nodeIndex1];
+		const node2 = nodes[edge.nodeIndex2];
+		if (lineIntersection(scissorStart, scissorEnd, node1, node2))
+		{
+			edges.splice(i, 1);
+		}
+	}
+}
+
+const mouseHoldDistanceThreshold = 1;
 let lastMousePosition = undefined;
 let lastMouseDownPosition = undefined;
 let lastMouseDownTimestamp = undefined;
 let lastMouseDownNodeIndex = undefined;
 
-function mousedown(event) {
+function mousedown(event)
+{
 	let mousePosition = getRelativePosition(event.target, event.clientX, event.clientY);
 	let mouseDownNodeIndex = getNodeIndexAtPosition(nodes, mousePosition);
 	
-	switch (state) {
+	switch (state)
+	{
 		case State.None:
-			if (event.buttons === 1) { // Left click
-				if (event.shiftKey && event.ctrlKey) {
-					if (mouseDownNodeIndex !== undefined) {
-						selectedNodeIndices.add(mouseDownNodeIndex);
+			if (event.buttons === 1) // Left click
+			{
+				if (event.shiftKey && event.ctrlKey)
+				{
+					if (mouseDownNodeIndex !== undefined)
+					{
+						addItemUnique(selectedNodeIndices, mouseDownNodeIndex);
 						state = State.MoveNode;
 					}
-				} else if (event.shiftKey) {
-					if (mouseDownNodeIndex === undefined) {
+				}
+				else if (event.shiftKey)
+				{
+					if (mouseDownNodeIndex === undefined)
+					{
 						state = State.BoxSelect;
-					} else {
-						selectedNodeIndices.add(mouseDownNodeIndex);
+					}
+					else
+					{
+						addItemUnique(selectedNodeIndices, mouseDownNodeIndex);
 						state = State.ScanSelect;
 					}
-				} else if (event.ctrlKey) {
-					if (!selectedNodeIndices.has(mouseDownNodeIndex))
-						selectedNodeIndices.clear();
-					if (mouseDownNodeIndex !== undefined) {
-						selectedNodeIndices.add(mouseDownNodeIndex);
+				}
+				else if (event.ctrlKey)
+				{
+					if (mouseDownNodeIndex !== undefined)
+					{
+						if (selectedNodeIndices.indexOf(mouseDownNodeIndex) === -1)
+							selectedNodeIndices = [mouseDownNodeIndex];
 						state = State.MoveNode;
 					}
-				} else if (event.altKey) {
+					else
+					{
+						selectedNodeIndices = [];
+					}
+				}
+				else if (event.altKey)
+				{
 					state = State.Pan;
-				} else {
-					if (mouseDownNodeIndex === undefined) {
+				}
+				else
+				{
+					if (mouseDownNodeIndex === undefined)
+					{
 						currentNodeColor = randomHSLColor(50);
 						state = State.DrawNode;
 					}
 				}
 			}
-			else if (event.buttons === 2 && !event.shiftKey) { // Right click
-				// Shift key disables context menu prevention on Firefox
+			else if (event.buttons === 2 && // Right click
+				!event.shiftKey) // Shift key disables context menu prevention on Firefox
+			{
 				if (mouseDownNodeIndex !== undefined)
+				{
+					deleteNode(mouseDownNodeIndex);
 					state = State.DeleteNode;
+				}
 				else
 					state = State.DeleteEdge;
 			}
-			else if (event.buttons === 4) { // Middle click
+			else if (event.buttons === 4) // Middle click
+			{
 				state = State.Pan;
 			}
 			break;
@@ -168,84 +304,76 @@ function mousedown(event) {
 	lastMouseDownTimestamp = event.timeStamp;
 }
 
-function mousemove(event) {
+function mousemove(event)
+{
 	let mousePosition = getRelativePosition(event.target, event.clientX, event.clientY);
-	hoveringNodeIndex = getNodeIndexAtPosition(nodes, mousePosition);
+	mouseHoverNodeIndex = getNodeIndexAtPosition(nodes, mousePosition);
 
-	switch (state) {
+	switch (state)
+	{
 		case State.None:
-			if (event.buttons === 1 && lastMouseDownNodeIndex !== undefined && (nodes[lastMouseDownNodeIndex].x - mousePosition.x) ** 2 + (nodes[lastMouseDownNodeIndex].y - mousePosition.y) ** 2 > nodes[lastMouseDownNodeIndex].radius ** 2) {
+			if (event.buttons === 1 && lastMouseDownNodeIndex !== undefined && (nodes[lastMouseDownNodeIndex].x - mousePosition.x) ** 2 + (nodes[lastMouseDownNodeIndex].y - mousePosition.y) ** 2 > nodes[lastMouseDownNodeIndex].radius ** 2)
+			{
 				state = State.DrawEdge;
 			}
 			break;
+			
 		case State.Pan:
 			offsetX += event.movementX;
 			offsetY += event.movementY;
 			break;
+			
 		case State.ScanSelect:
-			if (hoveringNodeIndex !== undefined)
-				selectedNodeIndices.add(hoveringNodeIndex);
+			if (mouseHoverNodeIndex !== undefined)
+				addItemUnique(selectedNodeIndices, mouseHoverNodeIndex);
 			break;
+			
 		case State.MoveNode:
-			selectedNodeIndices.forEach(nodeIndex => {
-				nodes[nodeIndex].x += event.movementX;
-				nodes[nodeIndex].y += event.movementY;
-			});
+			if (selectedNodeIndices.indexOf(lastMouseDownNodeIndex) !== -1)
+				moveNodes(event.movementX, event.movementY, selectedNodeIndices);
+			else
+				moveNodes(event.movementX, event.movementY, [lastMouseDownNodeIndex]);
 			break;
+			
 		case State.DeleteNode:
-			if (hoveringNodeIndex !== undefined) {
-				for (let i = edges.length - 1; i >= 0; i--) {
-					const edge = edges[i];
-					// Tear off edges before deleting node
-					if (edge.nodeIndex1 === hoveringNodeIndex || edge.nodeIndex2 === hoveringNodeIndex)
-						edges.splice(i, 1);
-					// Shift node indices after deletion
-					if (edge.nodeIndex1 > hoveringNodeIndex)
-						edge.nodeIndex1--;
-					if (edge.nodeIndex2 > hoveringNodeIndex)
-						edge.nodeIndex2--;
-				}
-				selectedNodeIndices.delete(hoveringNodeIndex);
-				nodes.splice(hoveringNodeIndex, 1);
-			}
+			if (mouseHoverNodeIndex !== undefined)
+				deleteNode(mouseHoverNodeIndex);
 			break;
+			
 		case State.DeleteEdge:
-			if (lastMousePosition !== undefined) {
-				for (let i = edges.length - 1; i >= 0; i--) {
-					const edge = edges[i];
-					const node1 = nodes[edge.nodeIndex1];
-					const node2 = nodes[edge.nodeIndex2];
-					if (lineIntersection(lastMousePosition, mousePosition, node1, node2)) {
-						edges.splice(i, 1);
-					}
-				}
-			}
+			if (lastMousePosition !== undefined)
+				cutEdges(lastMousePosition, mousePosition);
 			break;
 	}
 
 	lastMousePosition = mousePosition;
 }
 
-function mouseup(event) {
+function mouseup(event)
+{
 	let mousePosition = getRelativePosition(event.target, event.clientX, event.clientY);
 	let mouseUpNodeIndex = getNodeIndexAtPosition(nodes, mousePosition);
 
-	switch (state) {
+	switch (state)
+	{
 		case State.None:
-			if (lastMouseDownNodeIndex !== undefined && lastMouseDownNodeIndex === mouseUpNodeIndex) {
-				selectedNodeIndices.clear();
-				selectedNodeIndices.add(mouseUpNodeIndex);
+			if (lastMouseDownNodeIndex !== undefined && lastMouseDownNodeIndex === mouseUpNodeIndex)
+			{
+				selectedNodeIndices = [];
+				addItemUnique(selectedNodeIndices, mouseUpNodeIndex);
 			}
 			break;
+			
 		case State.BoxSelect:
 			const box = {
-				left: Math.min(lastMouseDownPosition.x, lastMousePosition.x),
-				top: Math.min(lastMouseDownPosition.y, lastMousePosition.y),
-				right: Math.max(lastMouseDownPosition.x, lastMousePosition.x),
-				bottom: Math.max(lastMouseDownPosition.y, lastMousePosition.y),
+				left: Math.min(lastMouseDownPosition.x, mousePosition.x),
+				top: Math.min(lastMouseDownPosition.y, mousePosition.y),
+				right: Math.max(lastMouseDownPosition.x, mousePosition.x),
+				bottom: Math.max(lastMouseDownPosition.y, mousePosition.y),
 			};
-			getNodesIndicesInBox(nodes, box).forEach(nodeIndex => selectedNodeIndices.add(nodeIndex));
+			getNodeIndicesInBox(box).forEach(nodeIndex => addItemUnique(selectedNodeIndices, nodeIndex));
 			break;
+			
 		case State.DrawNode:
 			let nodeRadius = Math.sqrt(
 				(mousePosition.x - lastMouseDownPosition.x) ** 2 +
@@ -255,14 +383,22 @@ function mouseup(event) {
 				y: lastMouseDownPosition.y,
 				radius: nodeRadiusCurve(nodeRadius),
 				color: currentNodeColor,
-				name: nameCounter++
+				name: nameCounter++,
 			});
 			break;
+			
 		case State.DrawEdge:
-			if (lastMouseDownNodeIndex !== undefined && mouseUpNodeIndex !== undefined) {
+			if (lastMouseDownNodeIndex !== undefined && mouseUpNodeIndex !== undefined)
+			{
 				if (!edges.some((edge) => edge.nodeIndex1 === lastMouseDownNodeIndex && edge.nodeIndex2 === mouseUpNodeIndex))
 					edges.push({ nodeIndex1: lastMouseDownNodeIndex, nodeIndex2: mouseUpNodeIndex });
 			}
+			break;
+
+		case State.DeleteEdge:
+			let mouseDeltaSqr = (mousePosition.x - lastMouseDownPosition.x) ** 2 + (mousePosition.y - lastMouseDownPosition.y) ** 2;
+			if (mouseDeltaSqr < mouseHoldDistanceThreshold ** 2)
+				selectedNodeIndices = [];
 			break;
 	}
 
@@ -270,189 +406,286 @@ function mouseup(event) {
 	state = State.None;
 }
 
-function wheel(event) {
+function wheel(event)
+{
 	// TODO: Camera zoom
 }
 
-const doubleTapTimeout = 300;	// ms
-const touchHoldTimeout = 300;	// ms
+const touchDoubleTapTimeout = 300; // ms
+const touchHoldTimeout = 300; // ms
+const touchDoubleTapDistanceThreshold = 20; // px I guess?
 
-let currentTouches = new Map();
+let touchInfos = new Map();
 
-function touchstart(event) {
+let lastSingleTouchStartNodeIndex = undefined;
+let lastSingleTouchStartPosition = undefined;
+let lastSingleTouchPosition = undefined;
+let lastSingleTouchStartTimestamp = undefined;
+let touchHoldTimer = undefined;
+
+function touchstart(event)
+{
 	event.preventDefault();
-
-	//event.changedTouches.forEach(touch => {
-	//	currentTouches.set(touch.identifier, {
-	//		touch: touch,
-	//		startPosition: { x: touch.clientX, y: touch.clientY },
-	//		startTimeStamp: event.timeStamp
-	//	});
-	//});
-
-	if (event.touches.length > 1)
-		return;
-
-	let touch = event.touches[0];
-
-	let touchPosition = getRelativePosition(touch.target, touch.clientX, touch.clientY);
-	let touchStartNodeIndex = getNodeIndexAtPosition(nodes, touchPosition);
-
-	switch (state) {
-		case State.None:
-			break;
+	
+	for (let i = 0; i < event.changedTouches.length; i++)
+	{
+		let touch = event.changedTouches[i];
+		let touchPosition = getRelativePosition(touch.target, touch.clientX, touch.clientY);
+		let touchStartNodeIndex = getNodeIndexAtPosition(nodes, touchPosition);
+		touchInfos.set(touch.identifier, {
+			touchStartPosition: touchPosition,
+			touchPosition: touchPosition,
+			touchClientPosition: { x: touch.clientX, y: touch.clientY },
+			touchDelta: { x: 0, y: 0 },
+			touchStartNodeIndex: touchStartNodeIndex,
+			touchOnNodeIndex: touchStartNodeIndex,
+			touchStartTimeStamp: event.timeStamp,
+			touchTimeStamp: event.timeStamp,
+		});
 	}
-
-	lastMouseDownPosition = lastMousePosition = touchPosition;
-	lastMouseDownNodeIndex = touchStartNodeIndex;
-	lastMouseDownTimestamp = event.timeStamp;
-
-	if (lastTouched === undefined)
-		lastTouched = event.timeStamp;
-	let deltaTime = event.timeStamp - lastTouched;
-	lastTouched = event.timeStamp;
-	let rect = event.target.getBoundingClientRect();
-
-	let x = event.touches[0].clientX - rect.left;
-	let y = event.touches[0].clientY - rect.top;
-
-	for (let i = 0; i < nodes.length; i++) {
-		let node = nodes[i];
-		if ((x - node.x) ** 2 + (y - node.y) ** 2 < (nodeRadius * 2) ** 2) {
-			firstNode = i;
-			selectedNode = i;
-			break;
-		}
-	}
-
-	// Node delete
-	if (deltaTime < 200) { // 200ms
-		let selected = undefined;
-		for (let i = 0; i < nodes.length; i++) {
-			let node = nodes[i];
-			if ((x - node.x) ** 2 + (y - node.y) ** 2 < (nodeRadius * 2) ** 2) {
-				selected = i;
-				break;
-			}
-		}
-		if (selected !== undefined) {
-			for (let i = edges.length - 1; i >= 0; i--) {
-				const edge = edges[i];
-				if (edge.firstNode === selected || edge.secondNode === selected)
-					edges.splice(i, 1);
-			}
-			for (let i = edges.length - 1; i >= 0; i--) {
-				const edge = edges[i];
-				if (edge.firstNode > selected)
-					edge.firstNode--;
-				if (edge.secondNode > selected)
-					edge.secondNode--;
-			}
-			nodes.splice(selected, 1);
-			nodeDeleted = true;
-			selectedNode = undefined;
-		}
-	}
-	lastMousePosition = { x: x, y: y };
-}
-
-function touchmove(event) {
-
-	if (nodeDeleted) return;
-	if (lastTouched === undefined)
-		lastTouched = event.timeStamp;
-
-	let deltaTime = event.timeStamp - lastTouched;
-	let rect = event.target.getBoundingClientRect();
-
-	let x = event.changedTouches[0].clientX - rect.left;
-	let y = event.changedTouches[0].clientY - rect.top;
-
-	// Node move and temp edge
-	if (firstNode !== undefined) {
-		if (deltaTime > 200 && airEdge === undefined) {
-			nodes[firstNode].x = x;
-			nodes[firstNode].y = y;
-		} else {
-			airEdge = { x: x, y: y };
-			selectedNode = undefined;
-		}
-	}
-
-	// Edge delete
-	if (deltaTime > 500 && firstNode === undefined) {
-		if (lastMousePosition !== undefined) {
-			for (let i = edges.length - 1; i >= 0; i--) {
-				const edge = edges[i];
-				const node1 = nodes[edge.firstNode];
-				const node2 = nodes[edge.secondNode];
-				if (lineIntersection(lastMousePosition, { x: x, y: y }, node1, node2)) {
-					edges.splice(i, 1);
+	
+	if (touchInfos.size === 1)
+	{
+		let touchInfo = touchInfos.values().next().value;
+		switch (state)
+		{
+			case State.None:
+				let doubleTap = false;
+				if (lastSingleTouchStartPosition !== undefined)
+				{
+					let doubleTapDistanceSqr = (touchInfo.touchPosition.x - lastSingleTouchStartPosition.x) ** 2 + (touchInfo.touchPosition.y - lastSingleTouchStartPosition.y) ** 2;
+					if (event.timeStamp - lastSingleTouchStartTimestamp < touchDoubleTapTimeout && doubleTapDistanceSqr < touchDoubleTapDistanceThreshold ** 2)
+					{
+						doubleTap = true;
+						navigator.vibrate([30, 30, 30]);
+						if (touchInfo.touchStartNodeIndex !== undefined)
+						{
+							deleteNode(touchInfo.touchStartNodeIndex);
+							state = State.DeleteNode;
+						}
+					}
 				}
-			}
+				if (!doubleTap)
+				{
+					touchHoldTimer = setTimeout(function ()
+					{
+						if (touchInfos.size === 1)
+						{
+							let touchInfo = touchInfos.values().next().value;
+							if (touchInfo.touchStartNodeIndex !== undefined)
+							{
+								if (selectedNodeIndices.indexOf(touchInfo.touchStartNodeIndex) === -1)
+									selectedNodeIndices = [touchInfo.touchStartNodeIndex];
+								state = State.MoveNode;
+							}
+							else
+								state = State.DeleteEdge;
+							navigator.vibrate(50);
+						}
+					}, touchHoldTimeout);
+				}
+				break;
 		}
+		lastSingleTouchStartNodeIndex = touchInfo.touchStartNodeIndex
+		lastSingleTouchStartPosition = touchInfo.touchStartPosition;
+		lastSingleTouchPosition = touchInfo.touchPosition;
+		lastSingleTouchStartTimestamp = touchInfo.touchStartTimeStamp;
 	}
-	lastMousePosition = { x: x, y: y };
+	else if (touchInfos.size === 2)
+	{
+		touchHoldTimer = clearTimeout(touchHoldTimer);
+		state = State.Pan	;
+	}
+	else if (touchInfos.size > 2)
+	{
+		touchHoldTimer = clearTimeout(touchHoldTimer);
+		state = State.None;
+	}
 }
 
-function touchend(event) {
-	if (lastTouched === undefined)
-		lastTouched = event.timeStamp;
-	let deltaTime = event.timeStamp - lastTouched;
+function touchmove(event)
+{
+	for (let i = 0; i < event.changedTouches.length; i++)
+	{
+		let touch = event.changedTouches[i];
+		let touchPosition = getRelativePosition(touch.target, touch.clientX, touch.clientY);
+		let touchOnNodeIndex = getNodeIndexAtPosition(nodes, touchPosition);
+		// Update touch infos
+		let touchInfo = touchInfos.get(touch.identifier);
+		touchInfo.touchDelta = { x: touch.clientX - touchInfo.touchClientPosition.x, y: touch.clientY - touchInfo.touchClientPosition.y };
+		touchInfo.touchClientPosition = { x: touch.clientX, y: touch.clientY };
+		touchInfo.touchPosition = touchPosition;
+		touchInfo.touchOnNodeIndex = touchOnNodeIndex;
+		touchInfo.touchTimeStamp = event.timeStamp;
+	}
 
-	let rect = event.target.getBoundingClientRect();
+	if (touchInfos.size === 1)
+	{
+		touchHoldTimer = clearTimeout(touchHoldTimer);
+		let touchInfo = touchInfos.values().next().value;
+		switch (state)
+		{
+			case State.None:
+				if (touchInfo.touchStartNodeIndex !== undefined)
+					state = State.DrawEdge
+				else
+				{
+					currentNodeColor = randomHSLColor(50);
+					state = State.DrawNode;
+				}
+				break;
+				
+			case State.MoveNode:
+				if (selectedNodeIndices.indexOf(lastSingleTouchStartNodeIndex) !== -1)
+					moveNodes(touchInfo.touchDelta.x, touchInfo.touchDelta.y, selectedNodeIndices);
+				else
+					moveNodes(touchInfo.touchDelta.x, touchInfo.touchDelta.y, [lastSingleTouchStartNodeIndex]);
+				break;
 
-	let x = event.changedTouches[0].clientX - rect.left;
-	let y = event.changedTouches[0].clientY - rect.top;
-	let secondNode = undefined;
+			case State.DeleteNode:
+				if (touchInfo.touchOnNodeIndex !== undefined)
+					deleteNode(touchInfo.touchOnNodeIndex);
+				break;
+				
+			case State.DeleteEdge:
+				let touchOldPosition = {
+					x: touchInfo.touchPosition.x - touchInfo.touchDelta.x,
+					y: touchInfo.touchPosition.y - touchInfo.touchDelta.y,
+				};
+				if (touchOldPosition !== undefined)
+				{
+					cutEdges(touchOldPosition, touchInfo.touchPosition);
+				}
+				break;
+				
+			case State.ScanSelect:
+				if (touchInfo.touchOnNodeIndex !== undefined)
+				{
+					addItemUnique(selectedNodeIndices, touchInfo.touchOnNodeIndex);
+				}
+				break;
+		}
+		lastSingleTouchPosition = touchInfo.touchPosition;
+	}
+	else if (touchInfos.size === 2)
+	{
+		let touchInfoList = [...touchInfos.values()];
+		let touchInfo1 = touchInfoList[0];
+		let touchInfo2 = touchInfoList[1];
+		switch (state) {
+			case State.Pan:
+				let deltaAvgX = (touchInfo1.touchDelta.x + touchInfo2.touchDelta.x) / 2;
+				let deltaAvgY = (touchInfo1.touchDelta.y + touchInfo2.touchDelta.y) / 2;
+				offsetX += deltaAvgX;
+				offsetY += deltaAvgY;
+				break;
+		}
+	}
+	else if (touchInfos.size > 2)
+	{
+		state = State.None;
+	}
+}
 
-	for (let i = 0; i < nodes.length; i++) {
-		let node = nodes[i];
-		if ((x - node.x) ** 2 + (y - node.y) ** 2 < (nodeRadius * 2) ** 2) {
-			secondNode = i;
-			break;
+function touchend(event)
+{
+	let endedTouchInfos = new Map();
+	for (let i = 0; i < event.changedTouches.length; i++)
+	{
+		let touch = event.changedTouches[i];
+		endedTouchInfos.set(touch.identifier, touchInfos.get(touch.identifier));
+		touchInfos.delete(touch.identifier);
+	}
+
+	if (endedTouchInfos.size === 1 && touchInfos.size === 0) {
+		let touchInfo = endedTouchInfos.values().next().value;
+		switch (state) {
+			case State.None:
+				if (touchInfo.touchStartNodeIndex !== undefined)
+				{
+					addItemUnique(selectedNodeIndices, touchInfo.touchStartNodeIndex);
+					break;
+				}
+				currentNodeColor = randomHSLColor(50);
+				// goto case State.DrawNode;
+			case State.DrawNode:
+				let nodeRadius = Math.sqrt(
+					(touchInfo.touchPosition.x - lastSingleTouchStartPosition.x) ** 2 +
+					(touchInfo.touchPosition.y - lastSingleTouchStartPosition.y) ** 2);
+				nodes.push({
+					x: lastSingleTouchStartPosition.x,
+					y: lastSingleTouchStartPosition.y,
+					radius: nodeRadiusCurve(nodeRadius),
+					color: currentNodeColor,
+					name: nameCounter++,
+				});
+				break;
+
+			case State.DrawEdge:
+				if (lastSingleTouchStartNodeIndex !== undefined && touchInfo.touchOnNodeIndex !== undefined) {
+					if (!edges.some((edge) => edge.nodeIndex1 === lastSingleTouchStartNodeIndex && edge.nodeIndex2 === touchInfo.touchOnNodeIndex))
+						edges.push({ nodeIndex1: lastSingleTouchStartNodeIndex, nodeIndex2: touchInfo.touchOnNodeIndex });
+				}
+				break;
+
+			case State.BoxSelect:
+				const box = {
+					left: Math.min(lastSingleTouchStartPosition.x, touchInfo.touchPosition.x),
+					top: Math.min(lastSingleTouchStartPosition.y, touchInfo.touchPosition.y),
+					right: Math.max(lastSingleTouchStartPosition.x, touchInfo.touchPosition.x),
+					bottom: Math.max(lastSingleTouchStartPosition.y, touchInfo.touchPosition.y),
+				};
+				getNodeIndicesInBox(box).forEach(nodeIndex => addItemUnique(selectedNodeIndices, nodeIndex));
+				break;
 		}
 	}
 
-	// Node add
-	if (firstNode === undefined && deltaTime < 500 && secondNode === undefined) {
-		nodes.push({ x: x, y: y, color: randHSLColor(50), name: nameCounter++ });
-		selectedNode = undefined;
-		return;
+	if (touchInfos.size === 0)
+	{
+		touchHoldTimer = clearTimeout(touchHoldTimer);
+		state = State.None;
 	}
-
-	// Edge add
-	if (firstNode !== undefined && secondNode !== undefined) {
-		if (!edges.some((edge) => edge.firstNode === firstNode && edge.secondNode === secondNode))
-			edges.push({ firstNode, secondNode });
+	else if (touchInfos.size === 2)
+	{
+		touchHoldTimer = clearTimeout(touchHoldTimer);
+		state = State.Pan;
 	}
-	firstNode = undefined;
-	airEdge = undefined;
-	nodeDeleted = false;
+	else if (touchInfos.size > 2)
+	{
+		touchHoldTimer = clearTimeout(touchHoldTimer);
+		state = State.None;
+	}
 }
 
-function load() {
+function load()
+{
 	resize();
 	window.requestAnimationFrame(draw);
 }
 
-function resize(event) {
+function resize(event)
+{
 	canvas.width = canvas.clientWidth * window.devicePixelRatio;
 	canvas.height = canvas.clientHeight * window.devicePixelRatio;
 }
 
-function nodeRadiusCurve(radius) {
-	return Math.sqrt(radius) + defaultNodeRadius;
-}
-
 let lastDrawTimestamp = undefined;
 
-function draw(timestamp) {
-	let deltaTime = lastDrawTimestamp === undefined ? 0 : lastDrawTimestamp - timestamp;
+function draw(timeStamp)
+{
+	let deltaTime = lastDrawTimestamp === undefined ? 0 : lastDrawTimestamp - timeStamp;
 
+	if (touchEnabled)
+	{
+		lastMouseDownPosition = lastSingleTouchStartPosition;
+		lastMousePosition = lastSingleTouchPosition;
+		lastMouseDownNodeIndex = lastSingleTouchStartNodeIndex;
+	}
+	
 	ctx.save();
 
-	try {
+	try
+	{
 		ctx.scale(window.devicePixelRatio, window.devicePixelRatio);
 		ctx.translate(offsetX, offsetY);
 		ctx.clear();
@@ -460,7 +693,8 @@ function draw(timestamp) {
 		ctx.strokeStyle = "gray";
 		ctx.lineWidth = edgeThickness;
 
-		if (state === State.DrawEdge && lastMouseDownNodeIndex !== undefined) {
+		if (state === State.DrawEdge && lastMouseDownNodeIndex !== undefined)
+		{
 			ctx.beginPath();
 			ctx.moveTo(nodes[lastMouseDownNodeIndex].x, nodes[lastMouseDownNodeIndex].y);
 			ctx.lineTo(lastMousePosition.x, lastMousePosition.y);
@@ -468,7 +702,8 @@ function draw(timestamp) {
 		}
 
 		edges.forEach(edge => {
-			if (nodes[edge.nodeIndex1] !== undefined && nodes[edge.nodeIndex2] !== undefined) {
+			if (nodes[edge.nodeIndex1] !== undefined && nodes[edge.nodeIndex2] !== undefined)
+			{
 				ctx.beginPath();
 				ctx.moveTo(nodes[edge.nodeIndex1].x, nodes[edge.nodeIndex1].y);
 				ctx.lineTo(nodes[edge.nodeIndex2].x, nodes[edge.nodeIndex2].y);
@@ -489,7 +724,8 @@ function draw(timestamp) {
 			ctx.fillText(node.name, node.x, node.y);
 		});
 
-		if (state === State.DrawNode) {
+		if (state === State.DrawNode)
+		{
 			let nodeRadius = Math.sqrt(
 				(lastMousePosition.x - lastMouseDownPosition.x) ** 2 +
 				(lastMousePosition.y - lastMouseDownPosition.y) ** 2);
@@ -499,7 +735,7 @@ function draw(timestamp) {
 			ctx.fill();
 		}
 
-		ctx.lineWidth = 3;
+		ctx.lineWidth = 4;
 		ctx.strokeStyle = 'gray';
 		
 		selectedNodeIndices.forEach(nodeIndex => {
@@ -511,17 +747,19 @@ function draw(timestamp) {
 
 		ctx.lineWidth = 1;
 		ctx.strokeStyle = 'gray';
-		ctx.setLineDash([2, 2]);
+		ctx.setLineDash([4, 4]);
 
-		if (state === State.BoxSelect && lastMouseDownPosition !== undefined) {
+		if (state === State.BoxSelect && lastMouseDownPosition !== undefined)
+		{
 			ctx.strokeRect(lastMouseDownPosition.x, lastMouseDownPosition.y, lastMousePosition.x - lastMouseDownPosition.x, lastMousePosition.y - lastMouseDownPosition.y);
 		}
 	}
-	finally {
+	finally
+	{
 		ctx.restore();
 	}
 
 	window.requestAnimationFrame(draw);
 
-	lastDrawTimestamp = timestamp;
+	lastDrawTimestamp = timeStamp;
 }
