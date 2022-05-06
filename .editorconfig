@@ -16,8 +16,5 @@ indent_size = 2
 [*.{css,scss,sass}]
 indent_size = 2
 
-[*.{js,ts}]
-indent_size = 2
-
 [*.{json,webmanifest}]
 insert_final_newline = false
