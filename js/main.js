@@ -133,7 +133,8 @@ function mousedown(event) {
 						state = State.ScanSelect;
 					}
 				} else if (event.ctrlKey) {
-					selectedNodeIndices.clear();
+					if (!selectedNodeIndices.has(mouseDownNodeIndex))
+						selectedNodeIndices.clear();
 					if (mouseDownNodeIndex !== undefined) {
 						selectedNodeIndices.add(mouseDownNodeIndex);
 						state = State.MoveNode;
@@ -144,8 +145,6 @@ function mousedown(event) {
 					if (mouseDownNodeIndex === undefined) {
 						currentNodeColor = randomHSLColor(50);
 						state = State.DrawNode;
-					} else {
-						state = State.DrawEdge;
 					}
 				}
 			}
@@ -173,13 +172,13 @@ function mousemove(event) {
 
 	switch (state) {
 		case State.None:
-			if (lastMouseDownNodeIndex !== undefined && (nodes[lastMouseDownNodeIndex].x - mousePosition.x) ** 2 + (nodes[lastMouseDownNodeIndex].y - mousePosition.y) ** 2 > nodes[lastMouseDownNodeIndex].radius ** 2) {
+			if (event.buttons === 1 && lastMouseDownNodeIndex !== undefined && (nodes[lastMouseDownNodeIndex].x - mousePosition.x) ** 2 + (nodes[lastMouseDownNodeIndex].y - mousePosition.y) ** 2 > nodes[lastMouseDownNodeIndex].radius ** 2) {
 				state = State.DrawEdge;
 			}
 			break;
 		case State.Pan:
-			offsetX += mousePosition.x - lastMousePosition.x;
-			offsetY += mousePosition.y - lastMousePosition.y;
+			offsetX += event.movementX;
+			offsetY += event.movementY;
 			break;
 		case State.ScanSelect:
 			if (hoveringNodeIndex !== undefined)
@@ -187,8 +186,8 @@ function mousemove(event) {
 			break;
 		case State.MoveNode:
 			selectedNodeIndices.forEach(nodeIndex => {
-				nodes[nodeIndex].x += mousePosition.x - lastMousePosition.x;
-				nodes[nodeIndex].y += mousePosition.y - lastMousePosition.y;
+				nodes[nodeIndex].x += event.movementX;
+				nodes[nodeIndex].y += event.movementY;
 			});
 			break;
 		case State.DeleteNode:
@@ -231,7 +230,10 @@ function mouseup(event) {
 
 	switch (state) {
 		case State.None:
-			// TODO
+			if (lastMouseDownNodeIndex !== undefined && lastMouseDownNodeIndex === mouseUpNodeIndex) {
+				selectedNodeIndices.clear();
+				selectedNodeIndices.add(mouseUpNodeIndex);
+			}
 			break;
 		case State.BoxSelect:
 			const box = {
@@ -267,7 +269,7 @@ function mouseup(event) {
 }
 
 function wheel(event) {
-	
+	// TODO: Camera zoom
 }
 
 const doubleTapTimeout = 300;	// ms
@@ -449,8 +451,8 @@ function draw(timestamp) {
 	ctx.save();
 
 	try {
-		ctx.translate(offsetX, offsetY);
 		ctx.scale(window.devicePixelRatio, window.devicePixelRatio);
+		ctx.translate(offsetX, offsetY);
 		ctx.clear();
 
 		ctx.strokeStyle = "gray";
