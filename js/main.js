@@ -557,13 +557,6 @@ function touchmove(event)
 					cutEdges(touchOldPosition, touchInfo.touchPosition);
 				}
 				break;
-				
-			case State.ScanSelect:
-				if (touchInfo.touchOnNodeIndex !== undefined)
-				{
-					addItemUnique(selectedNodeIndices, touchInfo.touchOnNodeIndex);
-				}
-				break;
 		}
 		lastSingleTouchPosition = touchInfo.touchPosition;
 	}
@@ -603,7 +596,8 @@ function touchend(event)
 			case State.None:
 				if (touchInfo.touchStartNodeIndex !== undefined)
 				{
-					addItemUnique(selectedNodeIndices, touchInfo.touchStartNodeIndex);
+					if (!removeItem(selectedNodeIndices, touchInfo.touchStartNodeIndex))
+						addItemUnique(selectedNodeIndices, touchInfo.touchStartNodeIndex);
 					break;
 				}
 				currentNodeColor = randomHSLColor(50);
