@@ -18,6 +18,8 @@ function randomHSLColor(lightness) {
 const defaultNodeRadius = 12.5;	// px
 const edgeThickness = 2;	// px
 
+const touchEnabled = Modernizr.touchevents;
+
 const canvas = document.getElementById('canvas');
 const ctx = canvas.getContext('2d', { alpha: false });
 ctx.imageSmoothingEnabled = true;
