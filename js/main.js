@@ -198,10 +198,12 @@ function deleteNode(nodeIndex)
 		if (edge.nodeIndex2 > nodeIndex)
 			edge.nodeIndex2--;
 	}
-	if (removeItem(selectedNodeIndices, nodeIndex))
-		for (let i = selectedNodeIndices.length - 1; i >= 0; i--)
-			if (selectedNodeIndices[i] > nodeIndex)
-				selectedNodeIndices[i]--; // Shift selected node indices to adjust
+	removeItem(selectedNodeIndices, nodeIndex);
+	for (let i = selectedNodeIndices.length - 1; i >= 0; i--)
+	{
+		if (selectedNodeIndices[i] > nodeIndex)
+			selectedNodeIndices[i]--; // Shift selected node indices to adjust
+	}
 	nodes.splice(nodeIndex, 1);
 }
 
