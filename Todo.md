@@ -1,0 +1,21 @@
+To Do
+=====
+- [ ] Directed edges and cyclic nodes
+- [ ] Import/Export grapml
+- [ ] Graph from:
+	- [ ] Adjacency matrix
+	- [ ] Distance matrix
+	- [ ] Incidence matrix
+- [ ] Algorithms:
+	- [ ] Breadth-first search (animated)
+	- [ ] Depth-first search (animated)
+	- [ ] Shortest path with Dijkstra's algorithm (animated)
+	- [ ] Minimum spanning tree (animated)
+	- [ ] Graph coloring
+	- [ ] Vertex degree calculation
+	- [ ] Check isomorphism
+- [ ] Weight based node radius
+- [ ] Force-directed graph simulation
+- [ ] Save PNG image
+- [ ] SVG generation
+- [ ] Graph generators for common patterns
