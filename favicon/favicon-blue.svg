@@ -2,29 +2,28 @@
 <!-- Created with Inkscape (http://www.inkscape.org/) -->
 
 <svg
-   xmlns:osb="http://www.openswatchbook.org/uri/2009/osb"
-   xmlns:dc="http://purl.org/dc/elements/1.1/"
-   xmlns:cc="http://creativecommons.org/ns#"
-   xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#"
-   xmlns:svg="http://www.w3.org/2000/svg"
-   xmlns="http://www.w3.org/2000/svg"
-   xmlns:sodipodi="http://sodipodi.sourceforge.net/DTD/sodipodi-0.dtd"
-   xmlns:inkscape="http://www.inkscape.org/namespaces/inkscape"
    width="512"
    height="512"
    viewBox="0 0 512 512"
    version="1.1"
    id="svg8"
-   inkscape:version="0.92.5 (2060ec1f9f, 2020-04-08)"
-   sodipodi:docname="favicon.svg"
-   inkscape:export-filename="/home/ahmetsait/Projects/interactive-graph-theory/favicon512.png"
+   inkscape:version="1.1.2 (1:1.1+202202050950+0a00cf5339)"
+   sodipodi:docname="favicon-blue.svg"
+   inkscape:export-filename="/home/ahmetsait/Projects/interactive-graph-theory/img/square-blue-512.png"
    inkscape:export-xdpi="96"
-   inkscape:export-ydpi="96">
+   inkscape:export-ydpi="96"
+   xmlns:inkscape="http://www.inkscape.org/namespaces/inkscape"
+   xmlns:sodipodi="http://sodipodi.sourceforge.net/DTD/sodipodi-0.dtd"
+   xmlns="http://www.w3.org/2000/svg"
+   xmlns:svg="http://www.w3.org/2000/svg"
+   xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#"
+   xmlns:cc="http://creativecommons.org/ns#"
+   xmlns:dc="http://purl.org/dc/elements/1.1/">
   <defs
      id="defs2">
     <linearGradient
        id="linearGradient4625"
-       osb:paint="gradient">
+       inkscape:swatch="gradient">
       <stop
          style="stop-color:#000000;stop-opacity:0.04545455"
          offset="0"
@@ -40,11 +39,11 @@
      pagecolor="#ffffff"
      bordercolor="#666666"
      borderopacity="1.0"
-     inkscape:pageopacity="0.0"
+     inkscape:pageopacity="1"
      inkscape:pageshadow="2"
-     inkscape:zoom="0.5"
-     inkscape:cx="256"
-     inkscape:cy="256.00003"
+     inkscape:zoom="1.5357819"
+     inkscape:cx="255.89571"
+     inkscape:cy="255.89571"
      inkscape:document-units="px"
      inkscape:current-layer="layer1"
      showgrid="false"
@@ -67,7 +66,6 @@
         <dc:format>image/svg+xml</dc:format>
         <dc:type
            rdf:resource="http://purl.org/dc/dcmitype/StillImage" />
-        <dc:title></dc:title>
       </cc:Work>
     </rdf:RDF>
   </metadata>
@@ -76,34 +74,38 @@
      inkscape:groupmode="layer"
      id="layer1"
      transform="translate(0,-161.53332)">
-    <circle
-       id="path4523"
-       cx="256"
-       cy="417.53329"
-       style="fill:#fdfdff;fill-opacity:1;stroke:#8080ff;stroke-width:25;stroke-miterlimit:4;stroke-dasharray:none;stroke-opacity:1;stroke-linejoin:round;stroke-linecap:round"
-       r="244.04684" />
-    <path
-       style="fill:none;stroke:#684ed9;stroke-width:20;stroke-linecap:round;stroke-linejoin:round;stroke-opacity:1;stroke-miterlimit:4;stroke-dasharray:none"
-       d="M 192,306.68207 384,417.53333 192.00002,528.38458 Z"
-       id="path4531"
-       inkscape:connector-curvature="0" />
-    <circle
-       style="fill:#59baf8;fill-opacity:1;stroke:none;stroke-width:7.5;stroke-miterlimit:4;stroke-dasharray:none;stroke-opacity:1"
-       id="path4525"
-       cx="192.00002"
-       cy="528.38458"
-       r="63.340202" />
-    <circle
-       r="63.340202"
-       cy="306.68207"
-       cx="192"
-       id="circle4527"
-       style="fill:#a259f8;fill-opacity:1;stroke:none;stroke-width:7.5;stroke-miterlimit:4;stroke-dasharray:none;stroke-opacity:1" />
-    <circle
-       style="fill:#626ef0;fill-opacity:1;stroke:none;stroke-width:7.5;stroke-miterlimit:4;stroke-dasharray:none;stroke-opacity:1"
-       id="circle4529"
-       cx="384"
-       cy="417.53333"
-       r="63.340202" />
+    <g
+       id="g835"
+       transform="matrix(0.99786844,0,0,0.99786844,0.54567936,0.89002259)">
+      <circle
+         id="path4523"
+         cx="256"
+         cy="417.53329"
+         style="fill:#fdfdff;fill-opacity:1;stroke:#8080ff;stroke-width:25;stroke-linecap:round;stroke-linejoin:round;stroke-miterlimit:4;stroke-dasharray:none;stroke-opacity:1"
+         r="244.04684" />
+      <path
+         style="fill:none;stroke:#684ed9;stroke-width:20;stroke-linecap:round;stroke-linejoin:round;stroke-miterlimit:4;stroke-dasharray:none;stroke-opacity:1"
+         d="M 192,306.68207 384,417.53333 192.00002,528.38458 Z"
+         id="path4531"
+         inkscape:connector-curvature="0" />
+      <circle
+         style="fill:#59baf8;fill-opacity:1;stroke:none;stroke-width:7.5;stroke-miterlimit:4;stroke-dasharray:none;stroke-opacity:1"
+         id="path4525"
+         cx="192.00002"
+         cy="528.38458"
+         r="63.340202" />
+      <circle
+         r="63.340202"
+         cy="306.68207"
+         cx="192"
+         id="circle4527"
+         style="fill:#a259f8;fill-opacity:1;stroke:none;stroke-width:7.5;stroke-miterlimit:4;stroke-dasharray:none;stroke-opacity:1" />
+      <circle
+         style="fill:#626ef0;fill-opacity:1;stroke:none;stroke-width:7.5;stroke-miterlimit:4;stroke-dasharray:none;stroke-opacity:1"
+         id="circle4529"
+         cx="384"
+         cy="417.53333"
+         r="63.340202" />
+    </g>
   </g>
 </svg>
