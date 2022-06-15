@@ -1,0 +1,21 @@
+{
+	"compilerOptions": {
+		"outDir": "js",
+		"allowJs": true,
+		"target": "es6",
+		"sourceMap": true,
+		"alwaysStrict": true,
+		"noImplicitAny": true,
+		"noImplicitReturns": true,
+		"noFallthroughCasesInSwitch": true,
+		"strictNullChecks": true,
+		"noImplicitThis": true,
+		"noImplicitOverride": true,
+		"noPropertyAccessFromIndexSignature": true,
+		"noUncheckedIndexedAccess": true,
+		"strict": true
+	},
+	"include": [
+		"ts/**/*"
+	]
+}
