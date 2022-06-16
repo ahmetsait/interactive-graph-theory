@@ -1,20 +1,21 @@
 To Do
 =====
 - [ ] Directed edges and cyclic nodes
-- [ ] Import/Export grapml
+- [ ] Import/Export graph from/to file
+- [ ] Save last state
 - [ ] Graph from:
 	- [ ] Adjacency matrix
 	- [ ] Distance matrix
 	- [ ] Incidence matrix
 - [ ] Algorithms:
+	- [ ] Vertex degree calculation
 	- [ ] Breadth-first search (animated)
 	- [ ] Depth-first search (animated)
 	- [ ] Shortest path with Dijkstra's algorithm (animated)
-	- [ ] Minimum spanning tree (animated)
+	- [ ] Minimum spanning tree with Prim & Kruskal (animated)
 	- [ ] Graph coloring
-	- [ ] Vertex degree calculation
-	- [ ] Check isomorphism
-- [ ] Weight based node radius
+	- [ ] PageRank & Weight based node radius
+- [ ] Weighted edges
 - [ ] Force-directed graph simulation
 - [ ] Save PNG image
 - [ ] SVG generation
