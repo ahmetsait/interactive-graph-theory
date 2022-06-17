@@ -10,7 +10,6 @@
 			"request": "launch",
 			"reAttach": true,
 			"file": "${workspaceFolder}/index.html",
-			"preLaunchTask": "build"
 		},
 		{
 			"name": "Firfox: localhost:8080",
@@ -19,7 +18,6 @@
 			"reAttach": true,
 			"url": "http://localhost:8080",
 			"webRoot": "${workspaceFolder}",
-			"preLaunchTask": "build"
 		},
 		{
 			"name": "Attach to Firefox",
@@ -31,7 +29,6 @@
 			"request": "launch",
 			"type": "chrome",
 			"file": "${workspaceFolder}/index.html",
-			"preLaunchTask": "build"
 		},
 		{
 			"name": "Chrome: localhost:8080",
@@ -39,7 +36,6 @@
 			"type": "chrome",
 			"url": "http://localhost:8080",
 			"webRoot": "${workspaceFolder}",
-			"preLaunchTask": "build"
 		},
 		{
 			"name": "Attach to Chrome",
