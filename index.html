@@ -5,7 +5,7 @@
 	<meta charset="utf-8">
 	<title>Interactive Graph Theory • Learn Graphs and Graph Algorithms</title>
 	
-	<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+	<meta name="viewport" content="width=device-width, initial-scale=1.0">
 	
 	<meta name="author" content="Ahmet Sait">
 	<meta name="description" content="Learn graph theory while having fun by drawing graphs and animating algorithms!">
@@ -33,10 +33,6 @@
 	<meta property="og:image:height" content="512">
 	
 	<meta name="twitter:card" content="summary_large_image">
-	<meta name="twitter:url" content="https://ahmetsait.com/interactive-graph-theory">
-	<meta name="twitter:title" content="Interactive Graph Theory • Learn Graphs and Graph Algorithms">
-	<meta name="twitter:description" content="Learn graph theory while having fun by drawing graphs and animating algorithms!">
-	<meta name="twitter:image" content="https://ahmetsait.com/interactive-graph-theory/img/open_graph-blue.png">
 	
 	<script type="application/ld+json">
 		{
@@ -60,24 +56,125 @@
 	
 	<link rel="stylesheet" href="css/reset.css">
 	<link rel="stylesheet" href="css/styles.css">
+	<link rel="stylesheet" href="assets/fontawesome/css/all.css">
 </head>
 
 <body>
 	
-	<header class="site-header">
-		<div class="container clearfix header-flex">
-			<div class="site-title">
-				<h1 class="site-name"><a href="https://ahmetsait.com/interactive-graph-theory">Interactive Graph Theory</a></h1>
-				<h2 class="site-description"></h2>
-			</div>
-		</div>
+	<header class="site-header container">
+		<h1 class="site-title"><a href="">Interactive Graph Theory</a></h1>
+		<button class="help-button" onclick="showDialog('help-dialog')"><i class="fa-regular fa-circle-question"></i></button>
 	</header>
 	
-	<main class="page-content">
-		<canvas id="canvas"></canvas>
-	</main>
+	<div class="container toolbar">
+		<div>
+			<button class="dropdown-button"><i class="fa-solid fa-circle-nodes"></i><span> Graph <i class="fa-solid fa-caret-down"></i></button>
+			<div class="dropdown hidden">
+				<button onclick="importDialog()"><i class="fa-solid fa-file-import"></i> Import JSON</button>
+				<button onclick="exportDialog()"><i class="fa-solid fa-file-export"></i> Export JSON</button>
+			</div>
+		</div>
+		<div>
+			<button class="dropdown-button"><i class="fa-solid fa-gears"></i><span> Algorithms <i class="fa-solid fa-caret-down"></i></span></button>
+			<div class="dropdown hidden">
+				<button onclick="dijkstra()">Shortest Path via Dijkstra's Algorithm</button>
+				<!--
+				<button>Breadth First Search</button>
+				<button>Depth First Search</button>
+				<button>Minimum Spanning Tree: Prim</button>
+				<button>Minimum Spanning Tree: Kruskal</button>
+				<button>Graph Coloring</button>
+				<button>Page Rank</button>
+				-->
+			</div>
+		</div>
+		<!--
+		<button><i class="fa-regular fa-circle-play"></i><span> Force Directed</span></button>
+		<button><i class="fa-solid fa-arrow-right-arrow-left"></i><span> Edge Mode</span></button>
+		<button><i class="fa-solid fa-rotate-left"></i><span> Undo</span></button>
+		<button><i class="fa-solid fa-rotate-right"></i><span> Redo</span></button>
+		<button><i class="fa-solid fa-scissors"></i><span> Cut</span></button>
+		<button><i class="fa-regular fa-copy"></i><span> Copy</span></button>
+		<button><i class="fa-regular fa-clipboard"></i><span> Paste</span></button>
+		<button><i class="fa-regular fa-clone"></i><span> Clone</span></button>
+		-->
+		<button onclick="selectAll()"><i class="fa-regular fa-object-group"></i><span> Select All</span></button>
+		<button onclick="deleteSelected()"><i class="fa-solid fa-xmark"></i><span> Delete</span></button>
+		<button onclick="resetAll()"><i class="fa-solid fa-eraser"></i><span> Clear</span></button>
+	</div>
+	
+	<div id="help-dialog" class="modal-layer hidden">
+		<div class="modal-window">
+			<div class="modal-header">
+				<div class="modal-title">Help</div>
+				<button class="modal-close-button"><i class="fa-regular fa-circle-xmark"></i></button>
+			</div>
+			<div class="modal-content">
+				<h2>Keyboard & Mouse Controls</h2>
+				<ul>
+					<li>Left click on blank space to add new nodes.</li>
+					<li>Left click a node and drag mouse to another node to make an edge connection.</li>
+					<li>Right click on a node and drag across nodes to delete them.</li>
+					<li>Right click on blank space and drag across edges to delete them.</li>
+					<li>Shift + Left click on a node and drag across nodes to select them.</li>
+					<li>Shift + Left click and drag over the canvas to rectangular select.</li>
+					<li>Ctrl + Left click and drag to move nodes.</li>
+					<li>Alt + Left click and drag to move the camera.</li>
+					<li>Ctrl + A to select / deselect all nodes.</li>
+					<li>Press delete key to delete selected nodes.</li>
+				</ul>
+				<h2>Touch Screen Controls</h2>
+				<ul>
+					<li>Tap on blank space to add nodes.</li>
+					<li>Tap on a node to select / deselect it.</li>
+					<li>Swipe between nodes to make edge connections.</li>
+					<li>Double tap on a node and swipe across nodes to delete them.</li>
+					<li>Tap + Hold on blank space and swipe across edges to delete them.</li>
+					<li>Tap + Hold on nodes to move them.</li>
+					<li>Swipe with two fingers to move the camera.</li>
+				</ul>
+			</div>
+		</div>
+	</div>
+	
+	<div id="import-dialog" class="modal-layer hidden">
+		<div class="modal-window">
+			<div class="modal-header">
+				<div class="modal-title">Import JSON</div>
+				<button class="modal-close-button"><i class="fa-regular fa-circle-xmark"></i></button>
+			</div>
+			<div class="modal-content">
+				<textarea id="import"></textarea>
+			</div>
+			<div class="modal-footer">
+				<button onclick="importConfirm()" class="modal-ok">Import</button>
+				<button onclick="closeDialog('import-dialog')" class="modal-cancel">Cancel</button>
+			</div>
+		</div>
+	</div>
+	
+	<div id="export-dialog" class="modal-layer hidden">
+		<div class="modal-window">
+			<div class="modal-header">
+				<div class="modal-title">Export JSON</div>
+				<button class="modal-close-button"><i class="fa-regular fa-circle-xmark"></i></button>
+			</div>
+			<div class="modal-content">
+				<textarea id="export"></textarea>
+			</div>
+			<div class="modal-footer">
+				<button onclick="exportToClipboard()" class="modal-ok">Copy</button>
+				<button onclick="closeDialog('export-dialog')" class="modal-cancel">Cancel</button>
+			</div>
+		</div>
+	</div>
+	
+	<canvas id="canvas"></canvas>
+	
+	<div id="statusbar" class="container statusbar"></div>
 	
 	<script src="js/vendor/modernizr-custom.js"></script>
+	<script src="js/algorithms.js"></script>
 	<script src="js/main.js"></script>
 	
 </body>

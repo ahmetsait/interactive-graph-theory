@@ -1,3 +1,96 @@
+class Vector2 {
+	constructor(
+		public x: number = 0,
+		public y: number = 0) { }
+
+	public get magnitudeSqr(): number {
+		return this.x ** 2 + this.y ** 2;
+	}
+
+	public get magnitude(): number {
+		return Math.sqrt(this.magnitudeSqr);
+	}
+
+	public add(rhs: Vector2 | number): Vector2 {
+		if (rhs instanceof Vector2)
+			return new Vector2(this.x + rhs.x, this.y + rhs.y);
+		else
+			return new Vector2(this.x + rhs, this.y + rhs);
+	}
+
+	public sub(rhs: Vector2 | number): Vector2 {
+		if (rhs instanceof Vector2)
+			return new Vector2(this.x - rhs.x, this.y - rhs.y);
+		else
+			return new Vector2(this.x - rhs, this.y - rhs);
+	}
+
+	public mul(rhs: Vector2 | number): Vector2 {
+		if (rhs instanceof Vector2)
+			return new Vector2(this.x * rhs.x, this.y * rhs.y);
+		else
+			return new Vector2(this.x * rhs, this.y * rhs);
+	}
+
+	public div(rhs: Vector2 | number): Vector2 {
+		if (rhs instanceof Vector2)
+			return new Vector2(this.x / rhs.x, this.y / rhs.y);
+		else
+			return new Vector2(this.x / rhs, this.y / rhs);
+	}
+
+	public dot(v: Vector2): number {
+		return this.x * v.x + this.y * v.y;
+	}
+}
+
+class GraphNode {
+	constructor(
+		public position: Vector2,
+		public radius: number,
+		public color: string,
+		public label: string) { }
+}
+
+class GraphEdge {
+	constructor(
+		public nodeIndex1: number,
+		public nodeIndex2: number) { }
+}
+
+class Graph {
+	constructor(
+		public nodes: GraphNode[] = [],
+		public edges: GraphEdge[] = []) { }
+
+	public serializeJson(): string {
+		return JSON.stringify(this, null, '\t');
+	}
+
+	static deserializeJson(json: string): Graph {
+		let graph = Object.assign(new Graph(), JSON.parse(json)) as Graph;
+		for (const node of graph.nodes) {
+			node.position = new Vector2(node.position.x, node.position.y);
+		}
+		return graph;
+	}
+}
+
+enum State {
+	None,
+	DrawNode,
+	MoveNode,
+	DeleteNode,
+	DrawEdge,
+	DeleteEdge,
+	BoxSelect,
+	ScanSelect,
+	ScanDeselect,
+	Pan,
+	Zoom,
+	TouchCameraControl, // TODO: Mixed pan+zoom+rotate
+};
+
 function clearCanvas(canvas: HTMLCanvasElement, ctx: CanvasRenderingContext2D, color: string) {
 	ctx.save();
 	try {
@@ -7,6 +100,27 @@ function clearCanvas(canvas: HTMLCanvasElement, ctx: CanvasRenderingContext2D, c
 	}
 	finally {
 		ctx.restore();
+	}
+}
+
+for (const dropdownButton of document.getElementsByClassName("dropdown-button")) {
+	dropdownButton.addEventListener("click", (event) => {
+		dropdownButton.nextElementSibling?.classList.toggle("hidden");
+	});
+}
+
+document.addEventListener("pointerdown", closeDropdown);
+
+for (const dropdown of document.getElementsByClassName("dropdown")) {
+	for (const element of dropdown.children) {
+		element.addEventListener("click", () => closeDropdown());
+	}
+}
+
+function closeDropdown(event?: MouseEvent) {
+	for (const dropdown of document.getElementsByClassName("dropdown")) {
+		if (event === undefined || !dropdown.parentNode?.contains(event.target as Node))
+			dropdown.classList.add("hidden");
 	}
 }
 
@@ -30,8 +144,34 @@ function addItemUnique<T>(array: T[], item: T) {
 		return false;
 }
 
-function randomHSLColor(lightness: number = 50) {
-	return `hsl(${Math.floor(Math.random() * 360)},${Math.floor(Math.random() * 50 + 25)}%,${lightness}%)`;
+function hslToRgbHex(h: number, s: number, l: number) {
+	var r, g, b;
+
+	if (s == 0) {
+		r = g = b = l; // achromatic
+	}
+	else {
+		function hue2rgb(p: number, q: number, t: number) {
+			if (t < 0) t += 1;
+			if (t > 1) t -= 1;
+			if (t < 1 / 6) return p + (q - p) * 6 * t;
+			if (t < 1 / 2) return q;
+			if (t < 2 / 3) return p + (q - p) * (2 / 3 - t) * 6;
+			return p;
+		}
+
+		var q = l < 0.5 ? l * (1 + s) : l + s - l * s;
+		var p = 2 * l - q;
+		r = hue2rgb(p, q, h + 1 / 3);
+		g = hue2rgb(p, q, h);
+		b = hue2rgb(p, q, h - 1 / 3);
+	}
+
+	return "#" + ((Math.round(r * 255) << 16) + (Math.round(g * 255) << 8) + (Math.round(b * 255))).toString(16);
+}
+
+function randomHslColor(lightness: number = 0.50) {
+	return hslToRgbHex(Math.random(), Math.random() * 0.50 + 0.25, lightness);
 }
 
 const defaultNodeRadius = 12.5;	// px
@@ -44,15 +184,13 @@ const ctx = canvas.getContext("2d", { alpha: false })!;
 ctx.imageSmoothingEnabled = true;
 ctx.imageSmoothingQuality = "high";
 
-window.addEventListener("load", load);
-
 new ResizeObserver(resize).observe(canvas);
+window.addEventListener("load", load);
 canvas.addEventListener("mousedown", mousedown);
 canvas.addEventListener("mousemove", mousemove);
 canvas.addEventListener("mouseup", mouseup);
 canvas.addEventListener("wheel", wheel);
 if (touchEnabled) {
-	console.log("Touch enabled.");
 	canvas.addEventListener("touchstart", touchstart, { passive: false });
 	canvas.addEventListener("touchmove", touchmove, { passive: false });
 	canvas.addEventListener("touchend", touchend, { passive: false });
@@ -60,98 +198,85 @@ if (touchEnabled) {
 }
 canvas.addEventListener("contextmenu", event => event.preventDefault());
 
-class Vec2 {
-	constructor(
-		public x: number = 0,
-		public y: number = 0) { }
-
-	public get magnitudeSqr(): number {
-		return this.x ** 2 + this.y ** 2;
+document.addEventListener("keydown", (e: KeyboardEvent) => {
+	if (!e.repeat) {
+		if (e.ctrlKey && !e.shiftKey && !e.altKey && e.key.toLowerCase() === "a") {
+			selectAll();
+			e.preventDefault();
+		}
+		else if (!e.ctrlKey && !e.shiftKey && !e.altKey && e.key === "Delete") {
+			deleteSelected();
+			e.preventDefault();
+		}
 	}
-
-	public get magnitude(): number {
-		return Math.sqrt(this.magnitudeSqr);
-	}
-
-	public add(rhs: Vec2 | number): Vec2 {
-		if (rhs instanceof Vec2)
-			return new Vec2(this.x + rhs.x, this.y + rhs.y);
-		else
-			return new Vec2(this.x + rhs, this.y + rhs);
-	}
-
-	public sub(rhs: Vec2 | number): Vec2 {
-		if (rhs instanceof Vec2)
-			return new Vec2(this.x - rhs.x, this.y - rhs.y);
-		else
-			return new Vec2(this.x - rhs, this.y - rhs);
-	}
-
-	public mul(rhs: Vec2 | number): Vec2 {
-		if (rhs instanceof Vec2)
-			return new Vec2(this.x * rhs.x, this.y * rhs.y);
-		else
-			return new Vec2(this.x * rhs, this.y * rhs);
-	}
-
-	public div(rhs: Vec2 | number): Vec2 {
-		if (rhs instanceof Vec2)
-			return new Vec2(this.x / rhs.x, this.y / rhs.y);
-		else
-			return new Vec2(this.x / rhs, this.y / rhs);
-	}
-
-	public dot(v: Vec2): number {
-		return this.x * v.x + this.y * v.y;
-	}
-}
-
-class GraphNode {
-	constructor(
-		public position: Vec2,
-		public radius: number,
-		public color: string,
-		public name: string) { }
-}
-
-class GraphEdge {
-	constructor(
-		public nodeIndex1: number,
-		public nodeIndex2: number) { }
-}
+});
 
 let nodes: GraphNode[] = [];
 let edges: GraphEdge[] = [];
 
-enum State {
-	None = 0,
-	DrawNode = 1,
-	MoveNode = 2,
-	DeleteNode = 3,
-	DrawEdge = 4,
-	DeleteEdge = 5,
-	BoxSelect = 6,
-	ScanSelect = 7,
-	Pan = 8,
-	Zoom = 9,
-	TouchCameraControl = 10, // TODO = Mixed pan+zoom+rotate
-};
+function importDialog() {
+	const textarea = document.getElementById("import") as HTMLTextAreaElement;
+	textarea.value = "";
+	showDialog("import-dialog");
+	textarea.focus();
+}
+
+function importConfirm() {
+	const textarea = document.getElementById("import") as HTMLTextAreaElement;
+	if (textarea.value)
+		importJson(textarea.value);
+	closeDialog("import-dialog");
+}
+
+function exportDialog() {
+	const textarea = document.getElementById("export") as HTMLTextAreaElement;
+	textarea.value = exportJson();
+	showDialog("export-dialog");
+	textarea.focus();
+	textarea.setSelectionRange(0, textarea.value.length, "backward");
+}
+
+function exportToClipboard() {
+	const textarea = document.getElementById("export") as HTMLTextAreaElement;
+	if (textarea.value)
+		navigator.clipboard.writeText(textarea.value);
+	closeDialog("export-dialog");
+}
+
+function exportJson() {
+	return new Graph(nodes, edges).serializeJson();
+}
+
+function importJson(json: string) {
+	let graph = Graph.deserializeJson(json);
+	resetAll();
+	nodes = graph.nodes;
+	edges = graph.edges;
+	let max = 1;
+	for (const node of nodes) {
+		let label = parseInt(node.label!);
+		if (!isNaN(label) && label > max)
+			max = label;
+	}
+	labelCounter = max + 1;
+	draw(window.performance.now());
+}
 
 let state = State.None;
 
 // Camera transform
-let offset = new Vec2;
+let offset = new Vector2;
 
 let selectedNodeIndices: number[] = [];
 let mouseHoverNodeIndex: number = -1;
 
 let currentNodeColor: string;
-let nameCounter = 1;
+let labelCounter = 1;
 
 class Line {
 	constructor(
-		public p1: Vec2,
-		public p2: Vec2) { }
+		public p1: Vector2,
+		public p2: Vector2) { }
 
 	public intersects(line: Line): boolean {
 		const line1 = this, line2 = line;
@@ -168,7 +293,7 @@ class Line {
 	}
 }
 
-function getNodeIndexAtPosition(nodes: GraphNode[], position: Vec2): number {
+function getNodeIndexAtPosition(nodes: GraphNode[], position: Vector2): number {
 	let closestNodeIndex = -1;
 	let closestNodeX: number;
 	let closestNodeY: number;
@@ -206,25 +331,59 @@ function getNodeIndicesInRect(box: DOMRectReadOnly): number[] {
 	return nodeIndices;
 }
 
-function getPositionRelativeToElement(element: Element | null, x: number, y: number): Vec2 {
+function getPositionRelativeToElement(element: Element | null, x: number, y: number): Vector2 {
 	if (element === null)
-		return new Vec2(x, y);
+		return new Vector2(x, y);
 	let rect = element.getBoundingClientRect();
-	return new Vec2(x - rect.left - offset.x, y - rect.top - offset.y);
+	return new Vector2((x - rect.left - offset.x) | 0, (y - rect.top - offset.y) | 0);
 }
 
 function nodeRadiusCurve(radius: number): number {
-	return Math.sqrt(radius) + defaultNodeRadius;
+	return +(Math.sqrt(radius) + defaultNodeRadius).toFixed(2);
 }
+
+function showDialog(id: string) {
+	document.getElementById(id)?.classList.remove("hidden");
+}
+
+function closeDialog(id: string) {
+	document.getElementById(id)?.classList.add("hidden");
+}
+
+for (const layer of document.getElementsByClassName("modal-layer")) {
+	for (const button of layer.getElementsByClassName("modal-close-button")) {
+		button.addEventListener("click", (event) => {
+			closeDialog(layer.id);
+		});
+	}
+}
+
+document.addEventListener("click", (event) => {
+	if (event.target instanceof Element && event.target.classList.contains("modal-layer"))
+		event.target.classList.add("hidden");
+});
 
 function resetAll() {
 	selectedNodeIndices = [];
 	edges = [];
 	nodes = [];
-	nameCounter = 1;
+	labelCounter = 1;
+	draw(window.performance.now());
 }
 
-function moveNodes(delta: Vec2, nodeIndices: number[]) {
+function selectAll() {
+	if (selectedNodeIndices.length < nodes.length)
+		selectedNodeIndices = [...nodes.keys()];
+	else
+		selectedNodeIndices = [];
+	draw(window.performance.now());
+}
+
+function deleteSelected() {
+	deleteNodes(selectedNodeIndices);
+}
+
+function moveNodes(delta: Vector2, nodeIndices: number[]) {
 	nodeIndices.forEach(nodeIndex => {
 		if (nodeIndex >= 0 && nodeIndex < nodes.length) {
 			let node = nodes[nodeIndex]!;
@@ -236,7 +395,8 @@ function moveNodes(delta: Vec2, nodeIndices: number[]) {
 }
 
 function deleteNodes(nodeIndices: number[]) {
-	nodeIndices.forEach(nodeIndex => deleteNode(nodeIndex));
+	new Int32Array(nodeIndices).sort().reverse().forEach(nodeIndex => deleteNode(nodeIndex));
+	draw(window.performance.now());
 }
 
 function deleteNode(nodeIndex: number) {
@@ -271,8 +431,8 @@ function cutEdges(scissor: Line) {
 }
 
 const mouseHoldDistanceThreshold = 1;
-let lastMousePosition: Vec2 | null = null;
-let lastMouseDownPosition: Vec2 | null = null;
+let lastMousePosition: Vector2 | null = null;
+let lastMouseDownPosition: Vector2 | null = null;
 let lastMouseDownTimestamp: number = -1;
 let lastMouseDownNodeIndex: number = -1;
 
@@ -295,8 +455,14 @@ function mousedown(event: MouseEvent) {
 						state = State.BoxSelect;
 					}
 					else {
-						addItemUnique(selectedNodeIndices, mouseDownNodeIndex);
-						state = State.ScanSelect;
+						if (selectedNodeIndices.indexOf(mouseDownNodeIndex) === -1) {
+							addItemUnique(selectedNodeIndices, mouseDownNodeIndex);
+							state = State.ScanSelect;
+						}
+						else {
+							removeItem(selectedNodeIndices, mouseDownNodeIndex);
+							state = State.ScanDeselect;
+						}
 					}
 				}
 				else if (event.ctrlKey) {
@@ -314,7 +480,7 @@ function mousedown(event: MouseEvent) {
 				}
 				else {
 					if (mouseDownNodeIndex === -1) {
-						currentNodeColor = randomHSLColor(50);
+						currentNodeColor = randomHslColor();
 						state = State.DrawNode;
 					}
 				}
@@ -339,13 +505,15 @@ function mousedown(event: MouseEvent) {
 	lastMouseDownPosition = lastMousePosition = mousePosition;
 	lastMouseDownNodeIndex = mouseDownNodeIndex;
 	lastMouseDownTimestamp = event.timeStamp;
+
+	draw(window.performance.now());
 }
 
 function mousemove(event: MouseEvent) {
 	let mousePosition = getPositionRelativeToElement(event.target as Element, event.clientX, event.clientY);
 	mouseHoverNodeIndex = getNodeIndexAtPosition(nodes, mousePosition);
 
-	const movement = new Vec2(event.movementX, event.movementY);
+	const movement = new Vector2(event.movementX, event.movementY);
 
 	switch (state) {
 		case State.None:
@@ -363,6 +531,11 @@ function mousemove(event: MouseEvent) {
 		case State.ScanSelect:
 			if (mouseHoverNodeIndex !== -1)
 				addItemUnique(selectedNodeIndices, mouseHoverNodeIndex);
+			break;
+
+		case State.ScanDeselect:
+			if (mouseHoverNodeIndex !== -1)
+				removeItem(selectedNodeIndices, mouseHoverNodeIndex);
 			break;
 
 		case State.MoveNode:
@@ -386,6 +559,8 @@ function mousemove(event: MouseEvent) {
 	}
 
 	lastMousePosition = mousePosition;
+
+	draw(window.performance.now());
 }
 
 function mouseup(event: MouseEvent) {
@@ -422,7 +597,7 @@ function mouseup(event: MouseEvent) {
 					lastMouseDownPosition,
 					nodeRadiusCurve(nodeRadius),
 					currentNodeColor,
-					(nameCounter++).toString(),
+					"",
 				)
 			);
 			break;
@@ -445,10 +620,14 @@ function mouseup(event: MouseEvent) {
 
 	lastMouseDownNodeIndex = -1;
 	state = State.None;
+
+	draw(window.performance.now());
 }
 
 function wheel(event: WheelEvent) {
 	// TODO: Camera zoom
+
+	draw(window.performance.now());
 }
 
 const touchDoubleTapTimeout = 300; // ms
@@ -457,10 +636,10 @@ const touchDoubleTapDistanceThreshold = 20; // px I guess?
 
 class TouchInfo {
 	constructor(
-		public touchStartPosition: Vec2,
-		public touchPosition: Vec2,
-		public touchClientPosition: Vec2,
-		public touchDelta: Vec2,
+		public touchStartPosition: Vector2,
+		public touchPosition: Vector2,
+		public touchClientPosition: Vector2,
+		public touchDelta: Vector2,
 		public touchStartNodeIndex: number,
 		public touchOnNodeIndex: number,
 		public touchStartTimeStamp: number,
@@ -470,8 +649,8 @@ class TouchInfo {
 let touchInfos = new Map<number, TouchInfo>();
 
 let lastSingleTouchStartNodeIndex = -1;
-let lastSingleTouchStartPosition: Vec2 | null = null;
-let lastSingleTouchPosition: Vec2 | null = null;
+let lastSingleTouchStartPosition: Vector2 | null = null;
+let lastSingleTouchPosition: Vector2 | null = null;
 let lastSingleTouchStartTimestamp: number = -1;
 let touchHoldTimer: number | undefined = undefined;
 
@@ -488,8 +667,8 @@ function touchstart(event: TouchEvent) {
 			new TouchInfo(
 				touchPosition,
 				touchPosition,
-				new Vec2(touch.clientX, touch.clientY),
-				new Vec2,
+				new Vector2(touch.clientX, touch.clientY),
+				new Vector2,
 				touchStartNodeIndex,
 				touchStartNodeIndex,
 				event.timeStamp,
@@ -546,6 +725,8 @@ function touchstart(event: TouchEvent) {
 		touchHoldTimer = undefined;
 		state = State.None;
 	}
+
+	draw(window.performance.now());
 }
 
 function touchmove(event: TouchEvent) {
@@ -557,11 +738,11 @@ function touchmove(event: TouchEvent) {
 		let touchInfo = touchInfos.get(touch.identifier);
 		if (touchInfo === undefined)
 			continue;
-		touchInfo.touchDelta = new Vec2(
+		touchInfo.touchDelta = new Vector2(
 			touch.clientX - touchInfo.touchClientPosition.x,
 			touch.clientY - touchInfo.touchClientPosition.y
 		);
-		touchInfo.touchClientPosition = new Vec2(touch.clientX, touch.clientY);
+		touchInfo.touchClientPosition = new Vector2(touch.clientX, touch.clientY);
 		touchInfo.touchPosition = touchPosition;
 		touchInfo.touchOnNodeIndex = touchOnNodeIndex;
 		touchInfo.touchTimeStamp = event.timeStamp;
@@ -576,7 +757,7 @@ function touchmove(event: TouchEvent) {
 				if (touchInfo.touchStartNodeIndex !== -1)
 					state = State.DrawEdge
 				else {
-					currentNodeColor = randomHSLColor(50);
+					currentNodeColor = randomHslColor();
 					state = State.DrawNode;
 				}
 				break;
@@ -614,6 +795,8 @@ function touchmove(event: TouchEvent) {
 	else if (touchInfos.size > 2) {
 		state = State.None;
 	}
+
+	draw(window.performance.now());
 }
 
 function touchend(event: TouchEvent) {
@@ -634,7 +817,7 @@ function touchend(event: TouchEvent) {
 						addItemUnique(selectedNodeIndices, touchInfo.touchStartNodeIndex);
 					break;
 				}
-				currentNodeColor = randomHSLColor(50);
+				currentNodeColor = randomHslColor();
 			// goto case State.DrawNode;
 			case State.DrawNode:
 				if (lastSingleTouchStartPosition === null)
@@ -645,7 +828,7 @@ function touchend(event: TouchEvent) {
 						lastSingleTouchStartPosition,
 						nodeRadiusCurve(nodeRadius),
 						currentNodeColor,
-						(nameCounter++).toString(),
+						"",
 					)
 				);
 				break;
@@ -687,16 +870,25 @@ function touchend(event: TouchEvent) {
 		touchHoldTimer = undefined;
 		state = State.None;
 	}
+
+	draw(window.performance.now());
 }
 
 function load() {
 	resize();
-	window.requestAnimationFrame(draw);
+	draw(window.performance.now());
 }
 
 function resize(entries?: ResizeObserverEntry[], observer?: ResizeObserver) {
+	// let w = canvas.width;
+	// let h = canvas.height;
 	canvas.width = canvas.clientWidth * window.devicePixelRatio;
 	canvas.height = canvas.clientHeight * window.devicePixelRatio;
+	// let widthDiff = canvas.width - w;
+	// let heightDiff = canvas.height - h;
+	// offset.x += widthDiff / 2;
+	// offset.y += heightDiff / 2;
+	draw(window.performance.now());
 }
 
 let lastDrawTimestamp: number = -1;
@@ -715,7 +907,7 @@ function draw(timeStamp: number) {
 	try {
 		ctx.scale(window.devicePixelRatio, window.devicePixelRatio);
 		ctx.translate(offset.x, offset.y);
-		clearCanvas(canvas, ctx, "azure");
+		clearCanvas(canvas, ctx, "white");
 
 		ctx.strokeStyle = "gray";
 		ctx.lineWidth = edgeThickness;
@@ -727,18 +919,25 @@ function draw(timeStamp: number) {
 			ctx.stroke();
 		}
 
-		edges.forEach(
-			edge => {
-				const node1 = nodes[edge.nodeIndex1];
-				const node2 = nodes[edge.nodeIndex2];
-				if (node1 === undefined || node2 === undefined)
-					throw new Error("Edge has missing nodes.");
-				ctx.beginPath();
-				ctx.moveTo(node1.position.x, node1.position.y);
-				ctx.lineTo(node2.position.x, node2.position.y);
-				ctx.stroke();
-			}
-		);
+		for (let i = 0; i < edges.length; i++) {
+			let edge = edges[i]!;
+			const node1 = nodes[edge.nodeIndex1];
+			const node2 = nodes[edge.nodeIndex2];
+			if (node1 === undefined || node2 === undefined)
+				throw new Error("Edge has missing nodes.");
+			ctx.beginPath();
+			ctx.moveTo(node1.position.x, node1.position.y);
+			ctx.lineTo(node2.position.x, node2.position.y);
+			ctx.stroke();
+		}
+
+		if (highlightedEdge) {
+			ctx.strokeStyle = "red";
+			ctx.beginPath();
+			ctx.moveTo(nodes[highlightedEdge.nodeIndex1]!.position.x, nodes[highlightedEdge.nodeIndex1]!.position.y);
+			ctx.lineTo(nodes[highlightedEdge.nodeIndex2]!.position.x, nodes[highlightedEdge.nodeIndex2]!.position.y);
+			ctx.stroke();
+		}
 
 		ctx.font = "bold 15px sans-serif";
 		ctx.textBaseline = "middle";
@@ -750,7 +949,7 @@ function draw(timeStamp: number) {
 			ctx.arc(node.position.x, node.position.y, node.radius, 0, 360);
 			ctx.fill();
 			ctx.fillStyle = "white";
-			ctx.fillText(node.name, node.position.x, node.position.y);
+			ctx.fillText(node.label, node.position.x, node.position.y);
 		});
 
 		if (state === State.DrawNode) {
@@ -773,19 +972,27 @@ function draw(timeStamp: number) {
 			ctx.stroke();
 		});
 
-		ctx.lineWidth = 1;
-		ctx.strokeStyle = "gray";
-		ctx.setLineDash([4, 4]);
-
 		if (state === State.BoxSelect && lastMousePosition !== null && lastMouseDownPosition !== null) {
+			ctx.lineWidth = 1;
+			ctx.strokeStyle = "gray";
+			ctx.setLineDash([4, 4]);
 			ctx.strokeRect(lastMouseDownPosition.x, lastMouseDownPosition.y, lastMousePosition.x - lastMouseDownPosition.x, lastMousePosition.y - lastMouseDownPosition.y);
+		}
+
+		if (highlightedNodeIndex !== -1) {
+			ctx.lineWidth = 4;
+			ctx.strokeStyle = "red";
+			ctx.setLineDash([]);
+			ctx.beginPath();
+			ctx.arc(nodes[highlightedNodeIndex]!.position.x, nodes[highlightedNodeIndex]!.position.y, nodes[highlightedNodeIndex]!.radius, 0, 360);
+			ctx.stroke();
 		}
 	}
 	finally {
 		ctx.restore();
 	}
 
-	window.requestAnimationFrame(draw);
+	//window.requestAnimationFrame(draw);
 
 	lastDrawTimestamp = timeStamp;
 }
