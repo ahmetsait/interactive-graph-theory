@@ -2,6 +2,7 @@
 	"compilerOptions": {
 		"outDir": "js",
 		"allowJs": true,
+		"allowUnreachableCode": false,
 		"target": "es6",
 		"sourceMap": true,
 		"alwaysStrict": true,

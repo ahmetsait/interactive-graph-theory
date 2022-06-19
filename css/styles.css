@@ -1,6 +1,5 @@
 html {
 	height: 100%;
-	overflow: hidden;
 }
 
 body {
@@ -11,7 +10,6 @@ body {
 	tab-size: 4;
 	display: flex;
 	flex-flow: column;
-	overflow: hidden;
 }
 
 a {
@@ -31,13 +29,29 @@ a:hover {
 	user-select: none;
 }
 
+button {
+	font: inherit;
+	background-color: white;
+	border: 0;
+	border-radius: 5px;
+	text-align: center;
+	padding: 5px;
+}
+
+@media screen and (hover: hover) {
+	button:hover {
+		background-color: whitesmoke;
+	}
+}
+
+button:active {
+	background-color: lightgray;
+}
+
 /* Container */
 
 .container {
-	max-width: 800px;
-	margin-right: auto;
-	margin-left: auto;
-	padding: 0px 30px;
+	padding: 0px 15px;
 }
 
 .clearfix:after {
@@ -50,70 +64,186 @@ a:hover {
 
 .site-header {
 	border-top: 5px solid #424242;
-	border-bottom: 1px solid #e8e8e8;
-  flex-grow: 0;
-  flex-shrink: 1;
-  flex-basis: auto;
-}
-
-.header-flex {
+	flex: 0 0 auto;
 	display: flex;
 	justify-content: space-between;
-	flex-wrap: wrap;
+	flex-wrap: nowrap;
 }
 
 .site-title {
 	vertical-align: middle;
-}
-
-.site-name {
-	font-size: 32px;
-	font-weight: 300;
-	font-variant: small-caps;
-}
-
-.site-description {
+	margin: 5px 0;
+	white-space: nowrap;
 	font-size: 24px;
+	font-variant: small-caps;
 	font-weight: 300;
-	margin-bottom: 5px;
-	color: gray;
+	text-overflow: clip;
+	overflow-x: hidden;
 }
 
-.site-nav {
-	margin-left: auto;
-	align-self: center;
-	vertical-align: middle;
-}
-
-.site-nav li {
-	display: inline-block;
-	text-decoration: inherit;
-}
-
-.site-nav li:not(:first-child) {
-	margin-left: 20px;
-}
-
-@media screen and (max-width: 600px) {
-	.site-title {
-		text-align: center;
-	}
-	.site-nav {
-		text-align: center;
-		margin: 0px;
-	}
-	.header-flex {
-		 flex-direction: column;
-	}
+.help-button {
+	margin-right: -15px;
+	padding: 6px 15px;
 }
 
 /* Page */
 
-.page-content {
+.modal-layer {
+	display: flex;
+	justify-content: center;
+	align-items: center;
+	position: fixed;
+	z-index: 1;
+	left: 0;
+	top: 0;
+	width: 100%;
 	height: 100%;
-  flex-grow: 1;
-  flex-shrink: 1;
-  flex-basis: auto;
+	background-color: rgba(0, 0, 0, 0.25);
+}
+
+.modal-window {
+	display: flex;
+	flex-direction: column;
+	background-color: white;
+	border: 1px solid lightgray;
+	border-radius: 5px;
+	max-width: 800px;
+	width: 80%;
+	height: 80%;
+}
+
+.modal-header {
+	display: flex;
+	justify-content: space-between;
+	flex: 0 0 auto;
+	font-size: large;
+	border-bottom: 1px solid lightgray;
+}
+
+.modal-title {
+	margin: 10px;
+}
+
+.modal-close-button {
+	float: right;
+	padding: 0.5em 0.75em;
+}
+
+.modal-content {
+	flex: 1 1 auto;
+	margin: 10px;
+	overflow: auto;
+}
+
+.modal-content > *:not(:first-child) {
+	margin-top: 5px;
+}
+
+.modal-content > h2:not(:first-child) {
+	margin-top: 10px;
+}
+
+.modal-content h2 {
+	font-size: large;
+	font-weight: bold;
+}
+
+.modal-content textarea {
+	width: 100%;
+	height: 100%;
+	box-sizing: border-box;
+}
+
+.modal-footer {
+	display: flex;
+	flex-direction: row-reverse;
+	margin: 0 10px 10px 10px;
+}
+
+.modal-footer button {
+	min-width: 60px;
+}
+
+.modal-footer button:not(:last-child) {
+	margin-left: 15px;
+}
+
+.toolbar {
+	display: flex;
+	flex: 0 0 auto;
+	flex-wrap: nowrap;
+	overflow-x: auto;
+	border-width: 1px 0px;
+	border-style: solid;
+	border-color: lightgray;
+}
+
+@media screen and (hover: hover) {
+	.toolbar button:hover {
+		background-color: whitesmoke;
+	}
+}
+
+.toolbar button:active {
+	background-color: lightgray;
+}
+
+.toolbar button {
+	display: inline-block;
+	font: inherit;
+	font-size: small;
+	line-height: 1;
+	padding: 5px;
+	min-width: min-content;
+	min-height: 30px;
+	background-color: white;
+	border: 0;
+}
+
+.toolbar > :not(:first-child) {
+	margin-left: 5px;
+}
+
+.toolbar button span {
+	white-space: nowrap;
+}
+
+.hidden {
+	display: none;
+}
+
+.dropdown {
+	position: absolute;
+	box-shadow: 0px 10px 16px 0px rgba(0, 0, 0, 0.2);
+	background-color: white;
+	border-radius: 5px;
+}
+
+.dropdown button {
+	display: block;
+	width: 100%;
+	text-align: initial;
+}
+
+#canvas {
+	display: block;
+	width: 100%;
+	height: 100%;
+	flex: 1 1 auto;
+	background-color: white;
+	/*
+	image-rendering: -moz-crisp-edges;
+	image-rendering: -webkit-crisp-edges;
+	image-rendering: pixelated;
+	image-rendering: crisp-edges;
+	*/
+}
+
+.statusbar {
+	flex: 0 0 auto;
+	/* font-size: 75%; */
+	height: 1.5em;
+	border-top: 1px solid lightgray;
 }
 
 /* Footer */
@@ -150,17 +280,4 @@ a:hover {
 	width: 24px;
 	height: 24px;
 	margin: 8px;
-}
-
-#canvas {
-	display: block;
-	width: 100%;
-	height: 100%;
-	background-color: azure;
-	/*
-	image-rendering: -moz-crisp-edges;
-	image-rendering: -webkit-crisp-edges;
-	image-rendering: pixelated;
-	image-rendering: crisp-edges;
-	*/
 }

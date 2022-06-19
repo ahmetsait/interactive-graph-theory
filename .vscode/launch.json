@@ -9,7 +9,7 @@
 			"type": "firefox",
 			"request": "launch",
 			"reAttach": true,
-			"file": "${workspaceFolder}/index.html",
+			"file": "${workspaceFolder}/index.html"
 		},
 		{
 			"name": "Firfox: localhost:8080",
@@ -18,6 +18,12 @@
 			"reAttach": true,
 			"url": "http://localhost:8080",
 			"webRoot": "${workspaceFolder}",
+			"pathMappings": [
+				{
+					"url": "http://localhost:8080",
+					"path": "${workspaceFolder}"
+				}
+			]
 		},
 		{
 			"name": "Attach to Firefox",
@@ -28,14 +34,14 @@
 			"name": "Chrome: index.html",
 			"request": "launch",
 			"type": "chrome",
-			"file": "${workspaceFolder}/index.html",
+			"file": "${workspaceFolder}/index.html"
 		},
 		{
 			"name": "Chrome: localhost:8080",
 			"request": "launch",
 			"type": "chrome",
 			"url": "http://localhost:8080",
-			"webRoot": "${workspaceFolder}",
+			"webRoot": "${workspaceFolder}"
 		},
 		{
 			"name": "Attach to Chrome",
