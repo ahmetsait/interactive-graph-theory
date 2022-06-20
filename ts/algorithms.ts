@@ -93,3 +93,35 @@ async function BFS(){
 		draw(window.performance.now());
 	}
 }
+
+async function DFS(){
+	let startNodeIndex: number;
+	if (selectedNodeIndices.length === 1)
+		startNodeIndex = selectedNodeIndices[0]!;
+	else
+		return;
+
+	let visited = Array<boolean>(nodes.length).fill(false);
+	let connections = gatherConnections();
+	visited[startNodeIndex] = true;
+
+	await resolveDFS(startNodeIndex, connections, visited);
+	draw(window.performance.now());
+}
+
+async function resolveDFS(currentNodeIndex: number, connections: number[][], visited: boolean[]){
+	visited[currentNodeIndex] = true;
+	for (const nodeIndex of connections[currentNodeIndex]!) {
+		highlightedNodeIndex = currentNodeIndex;
+		highlightedEdge = undefined;
+		await animationStep();
+		if (!visited[nodeIndex]){
+			highlightedEdge = new GraphEdge(currentNodeIndex, nodeIndex);
+			await animationStep();
+			await resolveDFS(nodeIndex, connections, visited);
+			highlightedNodeIndex = currentNodeIndex;
+			highlightedEdge = undefined;
+			await animationStep();
+		}
+	}
+}

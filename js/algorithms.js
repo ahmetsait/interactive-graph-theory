@@ -104,4 +104,36 @@ function BFS() {
         }
     });
 }
+function DFS() {
+    return __awaiter(this, void 0, void 0, function* () {
+        let startNodeIndex;
+        if (selectedNodeIndices.length === 1)
+            startNodeIndex = selectedNodeIndices[0];
+        else
+            return;
+        let visited = Array(nodes.length).fill(false);
+        let connections = gatherConnections();
+        visited[startNodeIndex] = true;
+        yield resolveDFS(startNodeIndex, connections, visited);
+        draw(window.performance.now());
+    });
+}
+function resolveDFS(currentNodeIndex, connections, visited) {
+    return __awaiter(this, void 0, void 0, function* () {
+        visited[currentNodeIndex] = true;
+        for (const nodeIndex of connections[currentNodeIndex]) {
+            highlightedNodeIndex = currentNodeIndex;
+            highlightedEdge = undefined;
+            yield animationStep();
+            if (!visited[nodeIndex]) {
+                highlightedEdge = new GraphEdge(currentNodeIndex, nodeIndex);
+                yield animationStep();
+                yield resolveDFS(nodeIndex, connections, visited);
+                highlightedNodeIndex = currentNodeIndex;
+                highlightedEdge = undefined;
+                yield animationStep();
+            }
+        }
+    });
+}
 //# sourceMappingURL=algorithms.js.map
