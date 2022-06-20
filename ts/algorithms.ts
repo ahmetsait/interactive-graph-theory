@@ -1,7 +1,7 @@
 const animationDelay = 300;
 
-let highlightedNodeIndex: number = -1;
-let highlightedEdge: GraphEdge | undefined;
+let highlightedNodeIndices: number[] = [];
+let highlightedEdges: GraphEdge[] = [];
 
 async function animationStep() {
 	draw(window.performance.now());
@@ -38,24 +38,24 @@ async function dijkstra() {
 		node.label = distances[i] === Infinity ? "∞" : distances[i]!.toString();
 	}
 	await resolveDijkstra(startNodeIndex, connections, visited, distances, true);
-	highlightedNodeIndex = -1;
-	highlightedEdge = undefined;
+	highlightedNodeIndices = [];
+	highlightedEdges = [];
 	draw(window.performance.now());
 }
 
 async function resolveDijkstra(currentNodeIndex: number, connections: number[][], visited: boolean[], distances: number[], animate: boolean) {
-	highlightedNodeIndex = currentNodeIndex;
-	highlightedEdge = undefined;
+	addItemUnique(highlightedNodeIndices, currentNodeIndex);
+	highlightedEdges = [];
 	if (animate) await animationStep();
 	for (const nodeIndex of connections[currentNodeIndex]!) {
-		highlightedEdge = new GraphEdge(currentNodeIndex, nodeIndex);
+		highlightedEdges.push(new GraphEdge(currentNodeIndex, nodeIndex));
 		if (animate) await animationStep();
 		if (distances[currentNodeIndex]! + 1 < distances[nodeIndex]!) {
 			distances[nodeIndex]! = distances[currentNodeIndex]! + 1;
 			nodes[nodeIndex]!.label = distances[nodeIndex] === Infinity ? "∞" : distances[nodeIndex]!.toString();
 			await resolveDijkstra(nodeIndex, connections, visited, distances, animate);
-			highlightedNodeIndex = currentNodeIndex;
-			highlightedEdge = undefined;
+			addItemUnique(highlightedNodeIndices, currentNodeIndex);
+			highlightedEdges = [];
 			if (animate) await animationStep();
 		}
 	}
@@ -76,22 +76,21 @@ async function BFS(){
 
 	while (queue.length > 0){
 		let currentNodeIndex = queue.shift() as number;
-
+		let added = addItemUnique(highlightedNodeIndices, currentNodeIndex);
+		if (added) await animationStep();
 		for (const nodeIndex of connections[currentNodeIndex]!) {
-			highlightedNodeIndex = currentNodeIndex;
-			highlightedEdge = undefined;
-			await animationStep();
 			if (!visited[nodeIndex]){
-				highlightedEdge = new GraphEdge(currentNodeIndex, nodeIndex);
-				await animationStep();
+				highlightedEdges.push(new GraphEdge(currentNodeIndex, nodeIndex));
+				let added = addItemUnique(highlightedNodeIndices, nodeIndex);
+				if (added) await animationStep();
 				queue.push(nodeIndex);
 				visited[nodeIndex] = true;
 			}
 		}
-		highlightedNodeIndex = -1;
-		highlightedEdge = undefined;
-		draw(window.performance.now());
 	}
+	highlightedNodeIndices = [];
+	highlightedEdges = [];
+	draw(window.performance.now());
 }
 
 async function DFS(){
@@ -106,22 +105,20 @@ async function DFS(){
 	visited[startNodeIndex] = true;
 
 	await resolveDFS(startNodeIndex, connections, visited);
+	highlightedNodeIndices = [];
+	highlightedEdges = [];
 	draw(window.performance.now());
 }
 
 async function resolveDFS(currentNodeIndex: number, connections: number[][], visited: boolean[]){
 	visited[currentNodeIndex] = true;
 	for (const nodeIndex of connections[currentNodeIndex]!) {
-		highlightedNodeIndex = currentNodeIndex;
-		highlightedEdge = undefined;
-		await animationStep();
+		const added = addItemUnique(highlightedNodeIndices, currentNodeIndex);
+		if (added) await animationStep();
 		if (!visited[nodeIndex]){
-			highlightedEdge = new GraphEdge(currentNodeIndex, nodeIndex);
+			highlightedEdges.push(new GraphEdge(currentNodeIndex, nodeIndex));
 			await animationStep();
 			await resolveDFS(nodeIndex, connections, visited);
-			highlightedNodeIndex = currentNodeIndex;
-			highlightedEdge = undefined;
-			await animationStep();
 		}
 	}
 }

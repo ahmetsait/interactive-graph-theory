@@ -803,11 +803,11 @@ function draw(timeStamp) {
             ctx.lineTo(node2.position.x, node2.position.y);
             ctx.stroke();
         }
-        if (highlightedEdge) {
+        for (const edge of highlightedEdges) {
             ctx.strokeStyle = "red";
             ctx.beginPath();
-            ctx.moveTo(nodes[highlightedEdge.nodeIndex1].position.x, nodes[highlightedEdge.nodeIndex1].position.y);
-            ctx.lineTo(nodes[highlightedEdge.nodeIndex2].position.x, nodes[highlightedEdge.nodeIndex2].position.y);
+            ctx.moveTo(nodes[edge.nodeIndex1].position.x, nodes[edge.nodeIndex1].position.y);
+            ctx.lineTo(nodes[edge.nodeIndex2].position.x, nodes[edge.nodeIndex2].position.y);
             ctx.stroke();
         }
         ctx.font = "bold 15px sans-serif";
@@ -844,12 +844,12 @@ function draw(timeStamp) {
             ctx.setLineDash([4, 4]);
             ctx.strokeRect(lastMouseDownPosition.x, lastMouseDownPosition.y, lastMousePosition.x - lastMouseDownPosition.x, lastMousePosition.y - lastMouseDownPosition.y);
         }
-        if (highlightedNodeIndex !== -1) {
+        for (const index of highlightedNodeIndices) {
             ctx.lineWidth = 4;
             ctx.strokeStyle = "red";
             ctx.setLineDash([]);
             ctx.beginPath();
-            ctx.arc(nodes[highlightedNodeIndex].position.x, nodes[highlightedNodeIndex].position.y, nodes[highlightedNodeIndex].radius, 0, 360);
+            ctx.arc(nodes[index].position.x, nodes[index].position.y, nodes[index].radius, 0, 360);
             ctx.stroke();
         }
     }
