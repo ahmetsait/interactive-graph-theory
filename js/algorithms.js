@@ -46,9 +46,9 @@ function dijkstra() {
             node.label = distances[i] === Infinity ? "∞" : distances[i].toString();
         }
         yield resolveDijkstra(startNodeIndex, connections, visited, distances, true);
-        draw(window.performance.now());
         highlightedNodeIndices = [];
         highlightedEdges = [];
+        draw(window.performance.now());
     });
 }
 function resolveDijkstra(currentNodeIndex, connections, visited, distances, animate) {
