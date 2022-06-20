@@ -60,3 +60,36 @@ async function resolveDijkstra(currentNodeIndex: number, connections: number[][]
 		}
 	}
 }
+
+async function BFS(){
+	let startNodeIndex: number;
+	if (selectedNodeIndices.length === 1)
+		startNodeIndex = selectedNodeIndices[0]!;
+	else
+		return;
+
+	let visited = Array<boolean>(nodes.length).fill(false);
+	let connections = gatherConnections();
+	let queue = Array<number>();
+	queue.push(startNodeIndex);
+	visited[startNodeIndex] = true;
+
+	while (queue.length > 0){
+		let currentNodeIndex = queue.shift() as number;
+
+		for (const nodeIndex of connections[currentNodeIndex]!) {
+			highlightedNodeIndex = currentNodeIndex;
+			highlightedEdge = undefined;
+			await animationStep();
+			if (!visited[nodeIndex]){
+				highlightedEdge = new GraphEdge(currentNodeIndex, nodeIndex);
+				await animationStep();
+				queue.push(nodeIndex);
+				visited[nodeIndex] = true;
+			}
+		}
+		highlightedNodeIndex = -1;
+		highlightedEdge = undefined;
+		draw(window.performance.now());
+	}
+}

@@ -73,4 +73,35 @@ function resolveDijkstra(currentNodeIndex, connections, visited, distances, anim
         }
     });
 }
+function BFS() {
+    return __awaiter(this, void 0, void 0, function* () {
+        let startNodeIndex;
+        if (selectedNodeIndices.length === 1)
+            startNodeIndex = selectedNodeIndices[0];
+        else
+            return;
+        let visited = Array(nodes.length).fill(false);
+        let connections = gatherConnections();
+        let queue = Array();
+        queue.push(startNodeIndex);
+        visited[startNodeIndex] = true;
+        while (queue.length > 0) {
+            let currentNodeIndex = queue.shift();
+            for (const nodeIndex of connections[currentNodeIndex]) {
+                highlightedNodeIndex = currentNodeIndex;
+                highlightedEdge = undefined;
+                yield animationStep();
+                if (!visited[nodeIndex]) {
+                    highlightedEdge = new GraphEdge(currentNodeIndex, nodeIndex);
+                    yield animationStep();
+                    queue.push(nodeIndex);
+                    visited[nodeIndex] = true;
+                }
+            }
+            highlightedNodeIndex = -1;
+            highlightedEdge = undefined;
+            draw(window.performance.now());
+        }
+    });
+}
 //# sourceMappingURL=algorithms.js.map
