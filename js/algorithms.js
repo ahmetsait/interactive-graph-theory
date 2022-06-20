@@ -9,8 +9,8 @@ var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, ge
     });
 };
 const animationDelay = 300;
-let highlightedNodeIndex = -1;
-let highlightedEdge;
+let highlightedNodeIndices = [];
+let highlightedEdges = [];
 function animationStep() {
     return __awaiter(this, void 0, void 0, function* () {
         draw(window.performance.now());
@@ -46,27 +46,27 @@ function dijkstra() {
             node.label = distances[i] === Infinity ? "∞" : distances[i].toString();
         }
         yield resolveDijkstra(startNodeIndex, connections, visited, distances, true);
-        highlightedNodeIndex = -1;
-        highlightedEdge = undefined;
         draw(window.performance.now());
+        highlightedNodeIndices = [];
+        highlightedEdges = [];
     });
 }
 function resolveDijkstra(currentNodeIndex, connections, visited, distances, animate) {
     return __awaiter(this, void 0, void 0, function* () {
-        highlightedNodeIndex = currentNodeIndex;
-        highlightedEdge = undefined;
+        addItemUnique(highlightedNodeIndices, currentNodeIndex);
+        highlightedEdges = [];
         if (animate)
             yield animationStep();
         for (const nodeIndex of connections[currentNodeIndex]) {
-            highlightedEdge = new GraphEdge(currentNodeIndex, nodeIndex);
+            highlightedEdges.push(new GraphEdge(currentNodeIndex, nodeIndex));
             if (animate)
                 yield animationStep();
             if (distances[currentNodeIndex] + 1 < distances[nodeIndex]) {
                 distances[nodeIndex] = distances[currentNodeIndex] + 1;
                 nodes[nodeIndex].label = distances[nodeIndex] === Infinity ? "∞" : distances[nodeIndex].toString();
                 yield resolveDijkstra(nodeIndex, connections, visited, distances, animate);
-                highlightedNodeIndex = currentNodeIndex;
-                highlightedEdge = undefined;
+                addItemUnique(highlightedNodeIndices, currentNodeIndex);
+                highlightedEdges = [];
                 if (animate)
                     yield animationStep();
             }
@@ -87,21 +87,23 @@ function BFS() {
         visited[startNodeIndex] = true;
         while (queue.length > 0) {
             let currentNodeIndex = queue.shift();
-            for (const nodeIndex of connections[currentNodeIndex]) {
-                highlightedNodeIndex = currentNodeIndex;
-                highlightedEdge = undefined;
+            let added = addItemUnique(highlightedNodeIndices, currentNodeIndex);
+            if (added)
                 yield animationStep();
+            for (const nodeIndex of connections[currentNodeIndex]) {
                 if (!visited[nodeIndex]) {
-                    highlightedEdge = new GraphEdge(currentNodeIndex, nodeIndex);
-                    yield animationStep();
+                    highlightedEdges.push(new GraphEdge(currentNodeIndex, nodeIndex));
+                    let added = addItemUnique(highlightedNodeIndices, nodeIndex);
+                    if (added)
+                        yield animationStep();
                     queue.push(nodeIndex);
                     visited[nodeIndex] = true;
                 }
             }
-            highlightedNodeIndex = -1;
-            highlightedEdge = undefined;
-            draw(window.performance.now());
         }
+        highlightedNodeIndices = [];
+        highlightedEdges = [];
+        draw(window.performance.now());
     });
 }
 function DFS() {
@@ -115,6 +117,8 @@ function DFS() {
         let connections = gatherConnections();
         visited[startNodeIndex] = true;
         yield resolveDFS(startNodeIndex, connections, visited);
+        highlightedNodeIndices = [];
+        highlightedEdges = [];
         draw(window.performance.now());
     });
 }
@@ -122,16 +126,13 @@ function resolveDFS(currentNodeIndex, connections, visited) {
     return __awaiter(this, void 0, void 0, function* () {
         visited[currentNodeIndex] = true;
         for (const nodeIndex of connections[currentNodeIndex]) {
-            highlightedNodeIndex = currentNodeIndex;
-            highlightedEdge = undefined;
-            yield animationStep();
+            const added = addItemUnique(highlightedNodeIndices, currentNodeIndex);
+            if (added)
+                yield animationStep();
             if (!visited[nodeIndex]) {
-                highlightedEdge = new GraphEdge(currentNodeIndex, nodeIndex);
+                highlightedEdges.push(new GraphEdge(currentNodeIndex, nodeIndex));
                 yield animationStep();
                 yield resolveDFS(nodeIndex, connections, visited);
-                highlightedNodeIndex = currentNodeIndex;
-                highlightedEdge = undefined;
-                yield animationStep();
             }
         }
     });
