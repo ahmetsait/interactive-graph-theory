@@ -805,6 +805,7 @@ function draw(timeStamp) {
         }
         for (const edge of highlightedEdges) {
             ctx.strokeStyle = "red";
+            ctx.lineWidth = edgeThickness * 2;
             ctx.beginPath();
             ctx.moveTo(nodes[edge.nodeIndex1].position.x, nodes[edge.nodeIndex1].position.y);
             ctx.lineTo(nodes[edge.nodeIndex2].position.x, nodes[edge.nodeIndex2].position.y);
