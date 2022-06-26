@@ -1,20 +1,21 @@
 To Do
 =====
 - [ ] Directed edges and cyclic nodes
-- [ ] Import/Export graph from/to file
-- [ ] Save last state
+- [x] Import/Export graph internal format (exact state)
+- [ ] Import/Export graph simple text format
+- [ ] Save last state (client side)
 - [ ] Graph from:
 	- [ ] Adjacency matrix
 	- [ ] Distance matrix
 	- [ ] Incidence matrix
 - [ ] Algorithms:
-	- [ ] Vertex degree calculation
-	- [ ] Breadth-first search (animated)
-	- [ ] Depth-first search (animated)
-	- [ ] Shortest path with Dijkstra's algorithm (animated)
+	- [x] Breadth-first search (animated)
+	- [x] Depth-first search (animated)
+	- [x] Shortest path with Dijkstra's algorithm (animated)
 	- [ ] Minimum spanning tree with Prim & Kruskal (animated)
 	- [ ] Graph coloring
 	- [ ] PageRank & Weight based node radius
+- [ ] A way to simply show vertex degrees
 - [ ] Weighted edges
 - [ ] Force-directed graph simulation
 - [ ] Save PNG image
