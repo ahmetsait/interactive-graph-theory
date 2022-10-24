@@ -38,7 +38,7 @@ class Vector2 {
         return this.x * v.x + this.y * v.y;
     }
 }
-class GraphNode {
+class GraphNode {  //grafta node'un özelliklerinin atanması
     constructor(position, radius, color, label) {
         this.position = position;
         this.radius = radius;
@@ -46,7 +46,7 @@ class GraphNode {
         this.label = label;
     }
 }
-class GraphEdge {
+class GraphEdge { //edge çizebilmek için mouse tutup bırakma yerlerinin belirlenmesi
     constructor(nodeIndex1, nodeIndex2) {
         this.nodeIndex1 = nodeIndex1;
         this.nodeIndex2 = nodeIndex2;
@@ -305,7 +305,7 @@ function getPositionRelativeToElement(element, x, y) {
     let rect = element.getBoundingClientRect();
     return new Vector2((x - rect.left - offset.x) | 0, (y - rect.top - offset.y) | 0);
 }
-function nodeRadiusCurve(radius) {
+function nodeRadiusCurve(radius) { //bu sanırım vertex boyu değiştirmek için
     return +(Math.sqrt(radius) + defaultNodeRadius).toFixed(2);
 }
 function showDialog(id) {
@@ -530,7 +530,7 @@ function mouseup(event) {
             if (lastMouseDownPosition === null)
                 throw new Error("State machine bug.");
             let nodeRadius = mousePosition.sub(lastMouseDownPosition).magnitude;
-            nodes.push(new GraphNode(lastMouseDownPosition, nodeRadiusCurve(nodeRadius), currentNodeColor, ""));
+            nodes.push(new GraphNode(lastMouseDownPosition, nodeRadiusCurve(nodeRadius), currentNodeColor, "")); //label eklenebilir
             break;
         case State.DrawEdge:
             if (lastMouseDownNodeIndex !== -1 && mouseUpNodeIndex !== -1) {
