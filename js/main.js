@@ -541,7 +541,7 @@ function mouseup(event) {
         case State.DrawEdge:
             if (lastMouseDownNodeIndex !== -1 && mouseUpNodeIndex !== -1) {
                 if (!edges.some((edge) => edge.nodeIndex1 === lastMouseDownNodeIndex && edge.nodeIndex2 === mouseUpNodeIndex))
-                    edges.push(new GraphEdge(lastMouseDownNodeIndex, mouseUpNodeIndex,5)); //ağırlık ekle
+                    edges.push(new GraphEdge(lastMouseDownNodeIndex, mouseUpNodeIndex,getWeight()  ) ); //ağırlık ekle
             }
             break;
         case State.DeleteEdge:
