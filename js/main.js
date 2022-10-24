@@ -38,18 +38,23 @@ class Vector2 {
         return this.x * v.x + this.y * v.y;
     }
 }
+
 class GraphNode {  //grafta node'un özelliklerinin atanması
     constructor(position, radius, color, label) {
         this.position = position;
         this.radius = radius;
         this.color = color;
         this.label = label;
+        console.log("a");
     }
+    
 }
 class GraphEdge { //edge çizebilmek için mouse tutup bırakma yerlerinin belirlenmesi
-    constructor(nodeIndex1, nodeIndex2) {
+    constructor(nodeIndex1, nodeIndex2,edgeWeight) { //ağırlık ekle 
         this.nodeIndex1 = nodeIndex1;
         this.nodeIndex2 = nodeIndex2;
+        this.edgeWeight = edgeWeight;
+        console.log(edgeWeight);
     }
 }
 class Graph {
@@ -530,12 +535,13 @@ function mouseup(event) {
             if (lastMouseDownPosition === null)
                 throw new Error("State machine bug.");
             let nodeRadius = mousePosition.sub(lastMouseDownPosition).magnitude;
-            nodes.push(new GraphNode(lastMouseDownPosition, nodeRadiusCurve(nodeRadius), currentNodeColor, "")); //label eklenebilir
+            
+            nodes.push(new GraphNode(lastMouseDownPosition, nodeRadiusCurve(nodeRadius), currentNodeColor,nodes.length)); //label eklenebilir(eklendi)
             break;
         case State.DrawEdge:
             if (lastMouseDownNodeIndex !== -1 && mouseUpNodeIndex !== -1) {
                 if (!edges.some((edge) => edge.nodeIndex1 === lastMouseDownNodeIndex && edge.nodeIndex2 === mouseUpNodeIndex))
-                    edges.push(new GraphEdge(lastMouseDownNodeIndex, mouseUpNodeIndex));
+                    edges.push(new GraphEdge(lastMouseDownNodeIndex, mouseUpNodeIndex,5)); //ağırlık ekle
             }
             break;
         case State.DeleteEdge:
@@ -722,7 +728,7 @@ function touchend(event) {
             case State.DrawEdge:
                 if (lastSingleTouchStartNodeIndex !== -1 && touchInfo.touchOnNodeIndex !== -1) {
                     if (!edges.some((edge) => edge.nodeIndex1 === lastSingleTouchStartNodeIndex && edge.nodeIndex2 === touchInfo.touchOnNodeIndex))
-                        edges.push(new GraphEdge(lastSingleTouchStartNodeIndex, touchInfo.touchOnNodeIndex));
+                        edges.push(new GraphEdge(lastSingleTouchStartNodeIndex, touchInfo.touchOnNodeIndex,5)); //ağırlık ekle
                 }
                 break;
             case State.BoxSelect:
