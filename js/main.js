@@ -89,9 +89,11 @@ var State;
     State[State["TouchCameraControl"] = 11] = "TouchCameraControl";
 })(State || (State = {}));
 ;
-function clearCanvas(canvas, ctx, color) {
+function clearCanvas(canvas, ctx, color) {  //bunu incele çok çalışıyor
+    //console.log("b");
     ctx.save();
     try {
+
         ctx.resetTransform();
         ctx.fillStyle = color;
         ctx.fillRect(0, 0, canvas.width, canvas.height);
@@ -541,7 +543,9 @@ function mouseup(event) {
         case State.DrawEdge:
             if (lastMouseDownNodeIndex !== -1 && mouseUpNodeIndex !== -1) {
                 if (!edges.some((edge) => edge.nodeIndex1 === lastMouseDownNodeIndex && edge.nodeIndex2 === mouseUpNodeIndex))
-                    edges.push(new GraphEdge(lastMouseDownNodeIndex, mouseUpNodeIndex,getWeight()  ) ); //ağırlık ekle
+                    edges.push(new GraphEdge(lastMouseDownNodeIndex, mouseUpNodeIndex,getWeight()  ) ); //ağırlık eklendi
+                
+                    console.log("as");
             }
             break;
         case State.DeleteEdge:
