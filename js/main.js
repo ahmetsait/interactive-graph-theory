@@ -55,12 +55,15 @@ class GraphEdge { //edge çizebilmek için mouse tutup bırakma yerlerinin belir
         this.nodeIndex2 = nodeIndex2;
         this.edgeWeight = edgeWeight;
         console.log(edgeWeight);
+        console.log(nodeIndex1,nodeIndex2);
+
     }
 }
 class Graph {
     constructor(nodes = [], edges = []) {
         this.nodes = nodes;
         this.edges = edges;
+        
     }
     serializeJson() {
         return JSON.stringify(this, null, '\t');
@@ -782,6 +785,10 @@ function resize(entries, observer) {
     draw(window.performance.now());
 }
 let lastDrawTimestamp = -1;
+
+
+
+
 function draw(timeStamp) {
     let deltaTime = lastDrawTimestamp === -1 ? 0 : lastDrawTimestamp - timeStamp;
     if (touchEnabled) {
