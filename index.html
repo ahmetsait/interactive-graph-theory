@@ -53,6 +53,8 @@
 	
 	<link rel="stylesheet" href="css/reset.css">
 	<link rel="stylesheet" href="css/styles.css">
+	<link rel="stylesheet" href="css/mhmt.css">
+
 	<link rel="stylesheet" href="assets/fontawesome/css/all.css">
 </head>
 
@@ -77,6 +79,8 @@
 				<button onclick="dijkstra()">Shortest Path via Dijkstra's Algorithm</button>
 				<button onclick="BFS()">Breadth First Search</button>
 				<button onclick="DFS()">Depth First Search</button>
+				<button onclick="kruskal()">Kruskal's Minimum Spanning Tree Algorithm</button>
+
 				<!--
 				<button>Minimum Spanning Tree: Prim</button>
 				<button>Minimum Spanning Tree: Kruskal</button>
@@ -98,6 +102,9 @@
 		<button onclick="selectAll()"><i class="fa-regular fa-object-group"></i><span> Select All</span></button>
 		<button onclick="deleteSelected()"><i class="fa-solid fa-xmark"></i><span> Delete</span></button>
 		<button onclick="resetAll()"><i class="fa-solid fa-eraser"></i><span> Clear</span></button>
+		<button onclick="drawSpesificGraph()"><i class="fa-solid"></i><span>Random Graph</span></button>
+		
+
 	</div>
 	
 	<div id="help-dialog" class="modal-layer hidden">
@@ -175,6 +182,9 @@
 	<script src="js/main.js"></script>
 	<script src="js/esma/esma.js"></script>
 	<script src="js/esma/prim_deneme.js"></script>
+	<script src="js/mehmet/mhmt_ops.js"></script>
+	<script src="js/mehmet/algorithms_mhmt.js"></script>
+	
 	
 </body>
 
