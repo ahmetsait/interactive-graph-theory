@@ -4,7 +4,7 @@ function getAllNodeIndices() {
 	/**
 	 * @type Array
 	 */
-	let nodesIndices = [];
+	let nodesIndices: number[] = [];
 	// console.log(nodes);
 	nodes.forEach((e) => {
 		nodesIndices.push(e.label);
@@ -23,21 +23,25 @@ function getNewLabel() {
 	return newValue;
 }
 
-function findEdge(index1, index2) {
-	edges.forEach(element => {
+function findEdgeWeight(index1: number, index2: number): number {
+	let we: number = -1; 
+	edges.forEach((element) => {
 		if(element.nodeIndex1 == index1 && element.nodeIndex1 == index2){
-			return element;
+			we = element.edgeWeight
 		}
 	});
+	return we;
+	
 }
 
 function removeAlgorithmObjects() {
-	if (document.querySelector(".div-element")) {
-		document.querySelector(".div-element").remove();
+	let div: HTMLElement | null = document.querySelector(".div-element");
+	if ( div !== null) {
+		div.remove();
 	}
-
-	if (document.querySelector(".total-div")) {
-		document.querySelector(".total-div").remove();
+	let div_total: HTMLElement | null = document.querySelector(".total-div");
+	if ( div !== null) {
+		div.remove();
 	}
 }
 
@@ -52,6 +56,7 @@ function drawSpesificGraph() {
 	nodes.push(new GraphNode(new Vector2(850, 530), 25, randomHslColor(), 6));
 	nodes.push(new GraphNode(new Vector2(350, 400), 25, randomHslColor(), 7));
 
+	
 	edges.push(new GraphEdge(0,7,16));
 	edges.push(new GraphEdge(2,3,17));
 	edges.push(new GraphEdge(1,7,19));
@@ -71,7 +76,7 @@ function drawSpesificGraph() {
 
 }
 
-function drawRandomGraph(size) {
+function drawRandomGraph(size: number) {
 	nodes = [];
 	console.log("hey");
 	for (let i = 1; i < size; i++) {

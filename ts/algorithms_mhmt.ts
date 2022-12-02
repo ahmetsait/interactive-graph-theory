@@ -1,31 +1,8 @@
-function wait(time) {
-	setTimeout(() => {
-		console.log("inside timeout");
-	}, time);
-}
+console.log("asdasdasdads");
 
-async function animationStep() {
-	draw(window.performance.now());
-	return new Promise(function (resolve) {
-		setTimeout(resolve, animationDelay);
-	});
-}
-
-
-function animationStep_() {
-	return __awaiter(this, void 0, void 0, function* () {
-		
-		console.log(text);
-		text += "x";
-		draw(window.performance.now());
-		return new Promise(function (resolve) {
-			setTimeout(resolve, animationDelay);
-		});
-	});
-}
 
 function kruskal() {
-	function compareWeight(a, b) {
+	function compareWeight(a:GraphEdge , b: GraphEdge) {
 		// converting to uppercase to have case-insensitive comparison
 		const w1 = a.edgeWeight;
 		const w2 = b.edgeWeight;
@@ -37,20 +14,20 @@ function kruskal() {
 		return comparison;
 	}
 
-	/**
-	 *
-	 * @param {Array} nodesList
-	 */
-	function checkTreeStatus(nodesList) {
-		let mainTree = nodesList[0].tree;
-		let sameTree = true;
-		nodesList.forEach((e) => {
-			if (e.tree == -1 || e.tree != mainTree) return false;
-		});
-		return true;
-	}
+	// /**
+	//  *
+	//  * @param {Array} nodesList
+	//  */
+	// function checkTreeStatus(nodesList: Array<any>) {
+	// 	let mainTree = nodesList[0].tree;
+	// 	let sameTree = true;
+	// 	nodesList.forEach((e) => {
+	// 		if (e.tree == -1 || e.tree != mainTree) return false;
+	// 	});
+	// 	return true;
+	// }
 
-	function changeTree(tree1, tree2) {
+	function changeTree(tree1: number, tree2: number) {
 		let bigTree = Math.max(tree1, tree2);
 		let smallTree = Math.min(tree1, tree2);
 
@@ -77,7 +54,7 @@ function kruskal() {
 	/**
 	 * @type HTMLElement
 	 */
-	const div = document.createElement("div");
+	const div: HTMLElement = document.createElement("div");
 	div.style.width = "150px";
 	div.classList.add("div-element");
 	document.body.appendChild(div);
@@ -98,7 +75,7 @@ function kruskal() {
 	/**
 	 *  @type Array
 	 */
-	let sorted = newEdges.sort(compareWeight);
+	let sorted: Array<any> = newEdges.sort(compareWeight);
 
 	sorted.forEach((e) => {
 		e.status = 0;
@@ -107,7 +84,7 @@ function kruskal() {
 	// console.log("sorted edge list : ", sorted);
 	// console.log("main edges       : ", edges);
 
-	let nodeStatus = [];
+	let nodeStatus: Array<any> = [];
 	let node = {};
 	let _tree = -1;
 
@@ -116,7 +93,7 @@ function kruskal() {
 			/**
 			 * @type GraphNode
 			 */
-			e
+			e: GraphNode
 		) => {
 			node = {
 				label: e.label,
@@ -132,10 +109,7 @@ function kruskal() {
 	let node1;
 	let node2;
 
-	/**
-	 * @type HTMLElement
-	 */
-	let li = null;
+	let li: HTMLElement;
 	sorted.forEach((e) => {
 		li = document.createElement("li");
 		li.classList.add("edge-li");
@@ -149,8 +123,6 @@ function kruskal() {
 		// console.log("before animation");
 
 		li.textContent = `${e.nodeIndex1} - ${e.nodeIndex2} => ${e.edgeWeight}`;
-		animationLog = [];
-		animationLog.push(li.textContent)
 		// yield animationStep();
 		// await animationStep();
 		ul.appendChild(li);
@@ -209,7 +181,7 @@ function kruskal() {
 	totalDiv.appendChild(totalTitle);
 	const totalWeightP = document.createElement("p");
 	totalWeightP.classList.add("total-weight");
-	totalWeightP.textContent = totalWeight;
+	totalWeightP.textContent = totalWeight.toString();
 	totalDiv.appendChild(totalWeightP);
 
 

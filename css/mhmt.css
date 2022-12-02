@@ -66,3 +66,7 @@
 .green-li {
 	border: 3px solid green;
 }
+
+.current-li-item{
+	border: 3px solid blue !important ;
+}

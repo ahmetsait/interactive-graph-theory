@@ -49,19 +49,21 @@ class GraphNode {
 		public position: Vector2,
 		public radius: number,
 		public color: string,
-		public label: string) { }
+		public label: number) { }
 }
 
 class GraphEdge {
 	constructor(
 		public nodeIndex1: number,
-		public nodeIndex2: number) { }
+		public nodeIndex2: number,
+		public edgeWeight: number) { }
 }
 
 class Graph {
 	constructor(
 		public nodes: GraphNode[] = [],
-		public edges: GraphEdge[] = []) { }
+		public edges: GraphEdge[] = [],
+	) { }
 
 	public serializeJson(): string {
 		return JSON.stringify(this, null, '\t');
@@ -254,7 +256,7 @@ function importJson(json: string) {
 	edges = graph.edges;
 	let max = 1;
 	for (const node of nodes) {
-		let label = parseInt(node.label!);
+		let label = node.label!;
 		if (!isNaN(label) && label > max)
 			max = label;
 	}
@@ -368,6 +370,8 @@ function resetAll() {
 	edges = [];
 	nodes = [];
 	labelCounter = 1;
+	removeAlgorithmObjects();
+	highlightedEdges = [];
 	draw(window.performance.now());
 }
 
@@ -597,15 +601,17 @@ function mouseup(event: MouseEvent) {
 					lastMouseDownPosition,
 					nodeRadiusCurve(nodeRadius),
 					currentNodeColor,
-					"",
+					getNewLabel(),
 				)
 			);
 			break;
 
 		case State.DrawEdge:
 			if (lastMouseDownNodeIndex !== -1 && mouseUpNodeIndex !== -1) {
+				console.log("asdasd");
+				
 				if (!edges.some((edge) => edge.nodeIndex1 === lastMouseDownNodeIndex && edge.nodeIndex2 === mouseUpNodeIndex))
-					edges.push(new GraphEdge(lastMouseDownNodeIndex, mouseUpNodeIndex));
+					edges.push(new GraphEdge(lastMouseDownNodeIndex, mouseUpNodeIndex, getWeight()	));
 			}
 			break;
 
@@ -828,7 +834,7 @@ function touchend(event: TouchEvent) {
 						lastSingleTouchStartPosition,
 						nodeRadiusCurve(nodeRadius),
 						currentNodeColor,
-						"",
+						getNewLabel(),
 					)
 				);
 				break;
@@ -836,7 +842,7 @@ function touchend(event: TouchEvent) {
 			case State.DrawEdge:
 				if (lastSingleTouchStartNodeIndex !== -1 && touchInfo.touchOnNodeIndex !== -1) {
 					if (!edges.some((edge) => edge.nodeIndex1 === lastSingleTouchStartNodeIndex && edge.nodeIndex2 === touchInfo.touchOnNodeIndex))
-						edges.push(new GraphEdge(lastSingleTouchStartNodeIndex, touchInfo.touchOnNodeIndex));
+						edges.push(new GraphEdge(lastSingleTouchStartNodeIndex, touchInfo.touchOnNodeIndex, getWeight()));
 				}
 				break;
 
@@ -891,109 +897,142 @@ function resize(entries?: ResizeObserverEntry[], observer?: ResizeObserver) {
 	draw(window.performance.now());
 }
 
-let lastDrawTimestamp: number = -1;
 
-function draw(timeStamp: number) {
-	let deltaTime = lastDrawTimestamp === -1 ? 0 : lastDrawTimestamp - timeStamp;
+// function draw(timeStamp: number) {
+// 	let deltaTime = lastDrawTimestamp === -1 ? 0 : lastDrawTimestamp - timeStamp;
 
-	if (touchEnabled) {
-		lastMouseDownPosition = lastSingleTouchStartPosition;
-		lastMousePosition = lastSingleTouchPosition;
-		lastMouseDownNodeIndex = lastSingleTouchStartNodeIndex;
-	}
+// 	if (touchEnabled) {
+// 		lastMouseDownPosition = lastSingleTouchStartPosition;
+// 		lastMousePosition = lastSingleTouchPosition;
+// 		lastMouseDownNodeIndex = lastSingleTouchStartNodeIndex;
+// 	}
 
-	ctx.save();
+// 	ctx.save();
 
-	try {
-		ctx.scale(window.devicePixelRatio, window.devicePixelRatio);
-		ctx.translate(offset.x, offset.y);
-		clearCanvas(canvas, ctx, "white");
+// 	try {
+// 		ctx.scale(window.devicePixelRatio, window.devicePixelRatio);
+// 		ctx.translate(offset.x, offset.y);
+// 		clearCanvas(canvas, ctx, "white");
 
-		ctx.strokeStyle = "gray";
-		ctx.lineWidth = edgeThickness;
+// 		ctx.strokeStyle = "gray";
+// 		ctx.lineWidth = edgeThickness;
 
-		if (state === State.DrawEdge && lastMouseDownNodeIndex !== -1 && lastMousePosition !== null) {
-			ctx.beginPath();
-			ctx.moveTo(nodes[lastMouseDownNodeIndex]!.position.x, nodes[lastMouseDownNodeIndex]!.position.y);
-			ctx.lineTo(lastMousePosition.x, lastMousePosition.y);
-			ctx.stroke();
-		}
+// 		if (state === State.DrawEdge && lastMouseDownNodeIndex !== -1 && lastMousePosition !== null) {
+// 			ctx.beginPath();
+// 			ctx.moveTo(nodes[lastMouseDownNodeIndex]!.position.x, nodes[lastMouseDownNodeIndex]!.position.y);
+// 			ctx.lineTo(lastMousePosition.x, lastMousePosition.y);
+// 			ctx.stroke();
+// 		}
 
-		for (let i = 0; i < edges.length; i++) {
-			let edge = edges[i]!;
-			const node1 = nodes[edge.nodeIndex1];
-			const node2 = nodes[edge.nodeIndex2];
-			if (node1 === undefined || node2 === undefined)
-				throw new Error("Edge has missing nodes.");
-			ctx.beginPath();
-			ctx.moveTo(node1.position.x, node1.position.y);
-			ctx.lineTo(node2.position.x, node2.position.y);
-			ctx.stroke();
-		}
+// 		for (const edge of highlightedEdges) {
+// 			console.log("hi");
+			
+// 			ctx.strokeStyle = "red";
+// 			ctx.lineWidth = edgeThickness * 2;
+// 			ctx.beginPath();
+// 			ctx.moveTo(nodes[edge.nodeIndex1]!.position.x, nodes[edge.nodeIndex1]!.position.y);
+// 			ctx.lineTo(nodes[edge.nodeIndex2]!.position.x, nodes[edge.nodeIndex2]!.position.y);
+// 			ctx.stroke();
+// 		}
+// 		for (const index of highlightedNodeIndices) {
+// 			ctx.lineWidth = 4;
+// 			ctx.strokeStyle = "red";
+// 			ctx.setLineDash([]);
+// 			ctx.beginPath();
+// 			ctx.arc(nodes[index]!.position.x, nodes[index]!.position.y, nodes[index]!.radius, 0, 360);
+// 			ctx.stroke();
+// 		}
 
-		for (const edge of highlightedEdges) {
-			ctx.strokeStyle = "red";
-			ctx.lineWidth = edgeThickness * 2;
-			ctx.beginPath();
-			ctx.moveTo(nodes[edge.nodeIndex1]!.position.x, nodes[edge.nodeIndex1]!.position.y);
-			ctx.lineTo(nodes[edge.nodeIndex2]!.position.x, nodes[edge.nodeIndex2]!.position.y);
-			ctx.stroke();
-		}
+// 		for (let i = 0; i < edges.length; i++) {
+// 			let edge = edges[i]!;
+// 			const node1 = nodes[edge.nodeIndex1];
+// 			const node2 = nodes[edge.nodeIndex2];
+// 			if (node1 === undefined || node2 === undefined)
+// 				throw new Error("Edge has missing nodes.");
+// 			ctx.beginPath();
+// 			ctx.moveTo(node1.position.x, node1.position.y);
+// 			ctx.lineTo(node2.position.x, node2.position.y);
+// 			ctx.stroke();
 
-		ctx.font = "bold 15px sans-serif";
-		ctx.textBaseline = "middle";
-		ctx.textAlign = "center";
+// 			// ctx.globalCompositeOperation = "destination-over";
 
-		nodes.forEach(node => {
-			ctx.fillStyle = node.color;
-			ctx.beginPath();
-			ctx.arc(node.position.x, node.position.y, node.radius, 0, 360);
-			ctx.fill();
-			ctx.fillStyle = "white";
-			ctx.fillText(node.label, node.position.x, node.position.y);
-		});
+// 			ctx.fillStyle = '#fff';	
+// 			var width = ctx.measureText((edge.edgeWeight).toString()).width;
+// 			ctx.fillRect(((node1.position.x + node2.position.x) / 2)-15, ((node1.position.y + node2.position.y) / 2)-15, 30, 30);
+				
 
-		if (state === State.DrawNode) {
-			if (lastMousePosition === null || lastMouseDownPosition === null)
-				throw new Error("lastMousePosition or lastMouseDownPosition cannot be null.");
-			let nodeRadius = lastMousePosition.sub(lastMouseDownPosition).magnitude;
-			ctx.fillStyle = currentNodeColor;
-			ctx.beginPath();
-			ctx.arc(lastMouseDownPosition.x, lastMouseDownPosition.y, nodeRadiusCurve(nodeRadius), 0, 360);
-			ctx.fill();
-		}
 
-		ctx.lineWidth = 4;
-		ctx.strokeStyle = "gray";
+// 			ctx.font = "bold 15px sans-serif";
+// 			ctx.textBaseline = "middle";
+// 			ctx.textAlign = "center";
+// 			ctx.fillStyle = "blue";
+// 			ctx.fillText(
+// 				(edge.edgeWeight).toString(),
+// 				((node1.position.x + node2.position.x) / 2), // added 5px cause not on it, but a little to the edge of the edge
+// 				((node1.position.y + node2.position.y) / 2) 
+// 			);
+			
 
-		selectedNodeIndices.forEach(nodeIndex => {
-			let selectedNode = nodes[nodeIndex]!;
-			ctx.beginPath();
-			ctx.arc(selectedNode.position.x, selectedNode.position.y, selectedNode.radius, 0, 360);
-			ctx.stroke();
-		});
+// 		}
 
-		if (state === State.BoxSelect && lastMousePosition !== null && lastMouseDownPosition !== null) {
-			ctx.lineWidth = 1;
-			ctx.strokeStyle = "gray";
-			ctx.setLineDash([4, 4]);
-			ctx.strokeRect(lastMouseDownPosition.x, lastMouseDownPosition.y, lastMousePosition.x - lastMouseDownPosition.x, lastMousePosition.y - lastMouseDownPosition.y);
-		}
+// 		// ctx.globalCompositeOperation = "source-in"
 
-		for (const index of highlightedNodeIndices) {
-			ctx.lineWidth = 4;
-			ctx.strokeStyle = "red";
-			ctx.setLineDash([]);
-			ctx.beginPath();
-			ctx.arc(nodes[index]!.position.x, nodes[index]!.position.y, nodes[index]!.radius, 0, 360);
-			ctx.stroke();
-		}
-	}
-	finally {
-		ctx.restore();
-	}
+		
 
-	//window.requestAnimationFrame(draw);
+		
 
-	lastDrawTimestamp = timeStamp;
-}
+// 		nodes.forEach(node => {
+// 			ctx.fillStyle = node.color;
+// 			ctx.beginPath();
+// 			ctx.arc(node.position.x, node.position.y, node.radius, 0, 360);
+// 			ctx.fill();
+// 			// ctx.font = "bold 15px sans-serif";	
+// 			ctx.font = "bold 15px sans-serif";
+// 			ctx.textBaseline = "middle";
+// 			ctx.textAlign = "center";
+// 			ctx.fillStyle = "white";
+// 			ctx.fillText((node.label).toString(), node.position.x, node.position.y);
+
+			
+
+
+
+// 		});
+
+// 		if (state === State.DrawNode) {
+// 			if (lastMousePosition === null || lastMouseDownPosition === null)
+// 				throw new Error("lastMousePosition or lastMouseDownPosition cannot be null.");
+// 			let nodeRadius = lastMousePosition.sub(lastMouseDownPosition).magnitude;
+// 			ctx.fillStyle = currentNodeColor;
+// 			ctx.beginPath();
+// 			ctx.arc(lastMouseDownPosition.x, lastMouseDownPosition.y, nodeRadiusCurve(nodeRadius), 0, 360);
+// 			ctx.fill();
+// 		}
+
+// 		ctx.lineWidth = 4;
+// 		ctx.strokeStyle = "gray";
+
+// 		selectedNodeIndices.forEach(nodeIndex => {
+// 			let selectedNode = nodes[nodeIndex]!;
+// 			ctx.beginPath();
+// 			ctx.arc(selectedNode.position.x, selectedNode.position.y, selectedNode.radius, 0, 360);
+// 			ctx.stroke();
+// 		});
+
+// 		if (state === State.BoxSelect && lastMousePosition !== null && lastMouseDownPosition !== null) {
+// 			ctx.lineWidth = 1;
+// 			ctx.strokeStyle = "gray";
+// 			ctx.setLineDash([4, 4]);
+// 			ctx.strokeRect(lastMouseDownPosition.x, lastMouseDownPosition.y, lastMousePosition.x - lastMouseDownPosition.x, lastMousePosition.y - lastMouseDownPosition.y);
+// 		}
+
+		
+// 	}
+// 	finally {
+// 		ctx.restore();
+// 	}
+
+// 	//window.requestAnimationFrame(draw);
+
+// 	lastDrawTimestamp = timeStamp;
+// }

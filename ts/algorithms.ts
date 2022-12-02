@@ -1,4 +1,4 @@
-const animationDelay = 300;
+const animationDelay = 1000;
 
 let highlightedNodeIndices: number[] = [];
 let highlightedEdges: GraphEdge[] = [];
@@ -35,7 +35,7 @@ async function dijkstra() {
 	distances[startNodeIndex] = 0;
 	for (let i = 0; i < nodes.length; i++) {
 		const node = nodes[i]!;
-		node.label = distances[i] === Infinity ? "∞" : distances[i]!.toString();
+		node.label = parseInt(distances[i] === Infinity ? "∞" : distances[i]!.toString());
 	}
 	await resolveDijkstra(startNodeIndex, connections, visited, distances, true);
 	highlightedNodeIndices = [];
@@ -48,11 +48,12 @@ async function resolveDijkstra(currentNodeIndex: number, connections: number[][]
 	highlightedEdges = [];
 	if (animate) await animationStep();
 	for (const nodeIndex of connections[currentNodeIndex]!) {
-		highlightedEdges.push(new GraphEdge(currentNodeIndex, nodeIndex));
+		let weight: number = findEdgeWeight(currentNodeIndex, nodeIndex);
+		highlightedEdges.push(new GraphEdge(currentNodeIndex, nodeIndex, weight ));
 		if (animate) await animationStep();
 		if (distances[currentNodeIndex]! + 1 < distances[nodeIndex]!) {
 			distances[nodeIndex]! = distances[currentNodeIndex]! + 1;
-			nodes[nodeIndex]!.label = distances[nodeIndex] === Infinity ? "∞" : distances[nodeIndex]!.toString();
+			nodes[nodeIndex]!.label = distances[nodeIndex] === Infinity ? parseInt("∞") : distances[nodeIndex]!;
 			await resolveDijkstra(nodeIndex, connections, visited, distances, animate);
 			addItemUnique(highlightedNodeIndices, currentNodeIndex);
 			highlightedEdges = [];
@@ -80,7 +81,7 @@ async function BFS(){
 		if (added) await animationStep();
 		for (const nodeIndex of connections[currentNodeIndex]!) {
 			if (!visited[nodeIndex]){
-				highlightedEdges.push(new GraphEdge(currentNodeIndex, nodeIndex));
+				highlightedEdges.push(new GraphEdge(currentNodeIndex, nodeIndex, findEdgeWeight(currentNodeIndex, nodeIndex)));
 				let added = addItemUnique(highlightedNodeIndices, nodeIndex);
 				if (added) await animationStep();
 				queue.push(nodeIndex);
@@ -116,7 +117,7 @@ async function resolveDFS(currentNodeIndex: number, connections: number[][], vis
 		const added = addItemUnique(highlightedNodeIndices, currentNodeIndex);
 		if (added) await animationStep();
 		if (!visited[nodeIndex]){
-			highlightedEdges.push(new GraphEdge(currentNodeIndex, nodeIndex));
+			highlightedEdges.push(new GraphEdge(currentNodeIndex, nodeIndex, (findEdgeWeight(currentNodeIndex,nodeIndex)) ));
 			await animationStep();
 			await resolveDFS(nodeIndex, connections, visited);
 		}
