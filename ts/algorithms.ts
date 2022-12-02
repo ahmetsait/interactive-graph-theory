@@ -1,5 +1,5 @@
 const animationDelay = 1000;
-
+let play = 1;
 let highlightedNodeIndices: number[] = [];
 let highlightedEdges: GraphEdge[] = [];
 

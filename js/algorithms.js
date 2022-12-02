@@ -9,6 +9,7 @@ var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, ge
     });
 };
 const animationDelay = 1000;
+let play = 1;
 let highlightedNodeIndices = [];
 let highlightedEdges = [];
 function animationStep() {
