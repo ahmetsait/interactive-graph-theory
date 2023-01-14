@@ -18,7 +18,7 @@ name="${1%.*}"
 ico="$name.ico"
 pngs=()
 
-for i in 256 512 192 180 150 128 96 64 48 32 16; do
+for i in 512 256 192 180 150 128 96 64 48 32 16; do
 	png="$name-$i.png"
 	inkscape -C -y 0 -w $i -h $i -o "$png" "$1" 2>/dev/null && magick identify "$png" && pngs+=("$png")
 done
