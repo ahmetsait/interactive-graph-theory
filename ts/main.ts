@@ -413,8 +413,10 @@ function deleteNode(nodeIndex: number) {
 	}
 	removeItem(selectedNodeIndices, nodeIndex);
 	for (let i = selectedNodeIndices.length - 1; i >= 0; i--) {
-		if (selectedNodeIndices[i]! > nodeIndex)
-			selectedNodeIndices[i]--; // Shift selected node indices to adjust
+		const v = selectedNodeIndices[i];
+		if (v !== undefined && v > nodeIndex) {
+			selectedNodeIndices[i] = v - 1;
+		}
 	}
 	nodes.splice(nodeIndex, 1);
 }
@@ -696,7 +698,9 @@ function touchstart(event: TouchEvent) {
 				if (!doubleTap) {
 					touchHoldTimer = setTimeout(function () {
 						if (touchInfos.size === 1) {
-							let touchInfo = touchInfos.values().next().value;
+							const it = touchInfos.values().next();
+							if (it.done || !it.value) return;
+							const touchInfo = it.value as TouchInfo;
 							if (touchInfo.touchStartNodeIndex !== -1) {
 								if (selectedNodeIndices.indexOf(touchInfo.touchStartNodeIndex) === -1)
 									selectedNodeIndices = [touchInfo.touchStartNodeIndex];
