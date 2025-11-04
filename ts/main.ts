@@ -394,7 +394,6 @@ function saveState(key: string, state: string){
 	try {
 		const serializedState = JSON.stringify(state);
 		localStorage.setItem(key, serializedState);
-		debugger;
 	} catch (error) {
 		console.error("Error saving state to localStorage:", error);
 	}
@@ -636,6 +635,7 @@ function mousedown(event: MouseEvent) {
 				}
 				else
 					state = State.DeleteEdge;
+				saveLastState();
 			}
 			else if (event.buttons === 4) // Middle click
 			{
@@ -690,13 +690,17 @@ function mousemove(event: MouseEvent) {
 			break;
 
 		case State.DeleteNode:
-			if (mouseHoverNodeIndex !== -1)
+			if (mouseHoverNodeIndex !== -1){
 				deleteNode(mouseHoverNodeIndex);
+				saveLastState();
+			}
 			break;
 
 		case State.DeleteEdge:
-			if (lastMousePosition !== null)
+			if (lastMousePosition !== null){
 				cutEdges(new Line(lastMousePosition, mousePosition));
+				saveLastState();
+			}
 			break;
 	}
 
@@ -763,6 +767,26 @@ function mouseup(event: MouseEvent) {
 					}
 				}
 			}
+
+			// create new node if edge drawing released on empty space
+			else if (lastMouseDownNodeIndex !== -1)
+			{
+				if (lastMouseDownPosition === null)
+					throw new Error("State machine bug.");
+				if (event.buttons === 0)// Left button
+				{
+					const newNode = new GraphNode(
+						new Vector2(mousePosition.x, mousePosition.y),
+						nodeRadiusCurve(defaultNodeRadius),
+						randomHslColor(),
+						"",
+					)
+					nodes.push(newNode);
+					edges.push(new GraphEdge(lastMouseDownNodeIndex, nodes.indexOf(newNode), EdgeType.Directional, 0));
+					saveLastState();
+				}
+			}
+			
 			break;
 
 		case State.DeleteEdge:
@@ -771,6 +795,7 @@ function mouseup(event: MouseEvent) {
 			let mouseDeltaSqr = mousePosition.sub(lastMouseDownPosition).magnitudeSqr;
 			if (mouseDeltaSqr < mouseHoldDistanceThreshold ** 2)
 				selectedNodeIndices = [];
+			saveLastState();
 			break;
 	}
 
@@ -845,6 +870,7 @@ function touchstart(event: TouchEvent) {
 						if (touchInfo.touchStartNodeIndex !== -1) {
 							deleteNode(touchInfo.touchStartNodeIndex);
 							state = State.DeleteNode;
+							saveLastState();
 						}
 					}
 				}
@@ -924,16 +950,20 @@ function touchmove(event: TouchEvent) {
 					moveNodes(touchInfo.touchDelta, selectedNodeIndices);
 				else
 					moveNodes(touchInfo.touchDelta, [lastSingleTouchStartNodeIndex]);
+				saveLastState();
 				break;
 
 			case State.DeleteNode:
-				if (touchInfo.touchOnNodeIndex !== -1)
+				if (touchInfo.touchOnNodeIndex !== -1){
 					deleteNode(touchInfo.touchOnNodeIndex);
+					saveLastState();
+				}
 				break;
 
 			case State.DeleteEdge:
 				let touchOldPosition = touchInfo.touchPosition.sub(touchInfo.touchDelta);
 				cutEdges(new Line(touchOldPosition, touchInfo.touchPosition));
+				saveLastState();
 				break;
 		}
 		lastSingleTouchPosition = touchInfo.touchPosition;
@@ -997,6 +1027,20 @@ function touchend(event: TouchEvent) {
 						edges.push(new GraphEdge(lastSingleTouchStartNodeIndex, touchInfo.touchOnNodeIndex, EdgeType.Directional, 0));
 						saveLastState();
 					}
+				}
+				else if (lastMouseDownNodeIndex !== -1)
+				{
+					if (lastMouseDownPosition === null)
+						throw new Error("State machine bug.");
+					const newNode = new GraphNode(
+						new Vector2(touchInfo.touchPosition.x, touchInfo.touchPosition.y),
+						nodeRadiusCurve(defaultNodeRadius),
+						randomHslColor(),
+						"",
+					)
+					nodes.push(newNode);
+					edges.push(new GraphEdge(lastMouseDownNodeIndex, nodes.indexOf(newNode), EdgeType.Directional, 0));
+					saveLastState();
 				}
 				break;
 
