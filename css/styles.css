@@ -281,3 +281,21 @@ button:active {
 	height: 24px;
 	margin: 8px;
 }
+
+.drop-area {
+  border: 2px dashed #ccc;
+  border-radius: 10px;
+  height: 50px;
+  text-align: center;
+  font-family: sans-serif;
+  color: #333;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  cursor: pointer;
+}
+
+.drop-area.highlight {
+  border-color: #007bff;
+}

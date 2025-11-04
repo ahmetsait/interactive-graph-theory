@@ -141,7 +141,11 @@
 				<button class="modal-close-button"><i class="fa-regular fa-circle-xmark"></i></button>
 			</div>
 			<div class="modal-content">
-				<input type="file" id="fileInput">
+				<div id="drop-area" class="drop-area">
+					<p>Drag and drop files here or click to select</p>
+					<input type="file" id="file-input" hidden accept="application/json,text/plain">
+				</div>
+				
 				<textarea id="import"></textarea>
 			</div>
 			<div class="modal-footer">

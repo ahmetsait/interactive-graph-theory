@@ -230,8 +230,23 @@ function exportToClipboard() {
         navigator.clipboard.writeText(textarea.value);
     closeDialog("export-dialog");
 }
-//#region Import from local file
-const fileInput = document.getElementById('fileInput');
+//#region Import/Export
+const dropArea = document.getElementById('drop-area');
+const fileInput = document.getElementById('file-input');
+['dragenter', 'dragover', 'dragleave', 'drop'].forEach(eventName => {
+    dropArea === null || dropArea === void 0 ? void 0 : dropArea.addEventListener(eventName, preventDefaults, false);
+    document.body.addEventListener(eventName, preventDefaults, false); // Prevent default on body too
+});
+['dragenter', 'dragover'].forEach(eventName => {
+    dropArea === null || dropArea === void 0 ? void 0 : dropArea.addEventListener(eventName, () => dropArea === null || dropArea === void 0 ? void 0 : dropArea.classList.add('highlight'), false);
+});
+['dragleave', 'drop'].forEach(eventName => {
+    dropArea === null || dropArea === void 0 ? void 0 : dropArea.addEventListener(eventName, () => dropArea === null || dropArea === void 0 ? void 0 : dropArea.classList.remove('highlight'), false);
+});
+dropArea === null || dropArea === void 0 ? void 0 : dropArea.addEventListener('drop', handleDrop, false);
+dropArea === null || dropArea === void 0 ? void 0 : dropArea.addEventListener('click', () => {
+    fileInput.click();
+});
 fileInput.addEventListener('change', (event) => {
     var _a;
     const target = event.target;
@@ -239,19 +254,36 @@ fileInput.addEventListener('change', (event) => {
         const selectedFile = (_a = target === null || target === void 0 ? void 0 : target.files) === null || _a === void 0 ? void 0 : _a[0];
         if (!selectedFile)
             return;
-        console.log('Selected file:', selectedFile.name);
-        const reader = new FileReader();
-        reader.onload = (e) => {
-            var _a;
-            const fileContent = (_a = e.target) === null || _a === void 0 ? void 0 : _a.result;
-            const textarea = document.getElementById("import");
-            textarea.value = fileContent;
-            //console.log('File content:', fileContent);
-        };
-        reader.readAsText(selectedFile);
+        handleImportedFile(selectedFile);
     }
 });
-//#endregion
+function preventDefaults(e) {
+    e.preventDefault();
+    e.stopPropagation();
+}
+function handleDrop(e) {
+    const dt = e.dataTransfer;
+    const files = dt === null || dt === void 0 ? void 0 : dt.files;
+    const acceptedMimeTypes = ['text/plain', 'application/json'];
+    if (files && files[0]) {
+        if (acceptedMimeTypes.indexOf(files[0].type) === -1) {
+            console.log(`Invalid MIME type: ${files[0].type}`);
+            return;
+        }
+        handleImportedFile(files[0]);
+    }
+}
+function handleImportedFile(file) {
+    console.log('Selected file:', file.name);
+    const reader = new FileReader();
+    reader.onload = (e) => {
+        var _a;
+        const fileContent = (_a = e.target) === null || _a === void 0 ? void 0 : _a.result;
+        const textarea = document.getElementById("import");
+        textarea.value = fileContent;
+    };
+    reader.readAsText(file);
+}
 function exportJson() {
     return new Graph(nodes, edges).serializeJson();
 }
@@ -281,6 +313,7 @@ function importJson(json) {
     labelCounter = max + 1;
     draw(window.performance.now());
 }
+//#endregion
 let state = State.None;
 // Camera transform
 let offset = new Vector2;

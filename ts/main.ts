@@ -252,28 +252,69 @@ function exportToClipboard() {
 }
 
 
-//#region Import from local file
+//#region Import/Export
 
-const fileInput = document.getElementById('fileInput') as HTMLInputElement;
+const dropArea = document.getElementById('drop-area');
+const fileInput = document.getElementById('file-input') as HTMLInputElement;
+
+['dragenter', 'dragover', 'dragleave', 'drop'].forEach(eventName => {
+  dropArea?.addEventListener(eventName, preventDefaults, false);
+  document.body.addEventListener(eventName, preventDefaults, false); // Prevent default on body too
+});
+
+['dragenter', 'dragover'].forEach(eventName => {
+  dropArea?.addEventListener(eventName, () => dropArea?.classList.add('highlight'), false);
+});
+
+['dragleave', 'drop'].forEach(eventName => {
+  dropArea?.addEventListener(eventName, () => dropArea?.classList.remove('highlight'), false);
+});
+
+dropArea?.addEventListener('drop', handleDrop, false);
+
+dropArea?.addEventListener('click', () => {
+  fileInput.click();
+});
 
 fileInput.addEventListener('change', (event) => {
 	const target = event.target as HTMLInputElement;
 	if (target.files && target.files.length > 0) {
 		const selectedFile = target?.files?.[0];
 		if (!selectedFile) return;
-		console.log('Selected file:', selectedFile.name);
+		handleImportedFile(selectedFile)
+	}
+});
+
+function preventDefaults (e: Event) {
+  e.preventDefault();
+  e.stopPropagation();
+}
+
+function handleDrop(e : DragEvent) {
+  const dt = e.dataTransfer;
+  const files = dt?.files;
+  const acceptedMimeTypes = ['text/plain', 'application/json'];
+  if (files && files[0])
+  {
+	if (acceptedMimeTypes.indexOf(files[0].type) === -1) {
+		console.log(`Invalid MIME type: ${files[0].type}`);
+		return;
+  	}
+  	handleImportedFile(files[0]);
+  }
+}
+
+function handleImportedFile(file : File) {
+	console.log('Selected file:', file.name);
 		const reader = new FileReader();
 		reader.onload = (e) => {
 			const fileContent = e.target?.result as string;
 			const textarea = document.getElementById("import") as HTMLTextAreaElement;
 			textarea.value = fileContent;
-			//console.log('File content:', fileContent);
 		};
-		reader.readAsText(selectedFile);
-	}
-});
+		reader.readAsText(file);
 
-//#endregion
+}
 
 function exportJson() {
 	return new Graph(nodes, edges).serializeJson();
@@ -307,6 +348,7 @@ function importJson(json: string) {
 	labelCounter = max + 1;
 	draw(window.performance.now());
 }
+//#endregion
 
 let state = State.None;
 
