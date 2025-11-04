@@ -1,6 +1,6 @@
 To Do
 =====
-- [ ] Directed edges and cyclic nodes
+- [x] Directed edges and cyclic nodes
 - [x] Import/Export graph internal format (exact state)
 - [x] Import/Export graph simple text format
 - [ ] Save last state (client side)

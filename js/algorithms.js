@@ -26,7 +26,8 @@ function gatherConnections() {
     }
     for (const edge of edges) {
         addItemUnique(connections[edge.nodeIndex1], edge.nodeIndex2);
-        addItemUnique(connections[edge.nodeIndex2], edge.nodeIndex1);
+        if (edge.edgeType == EdgeType.Bidirectional)
+            addItemUnique(connections[edge.nodeIndex2], edge.nodeIndex1);
     }
     return connections;
 }
@@ -93,6 +94,7 @@ function BFS() {
             for (const nodeIndex of connections[currentNodeIndex]) {
                 if (!visited[nodeIndex]) {
                     highlightedEdges.push(new GraphEdge(currentNodeIndex, nodeIndex, EdgeType.Bidirectional, 0));
+                    yield animationStep();
                     let added = addItemUnique(highlightedNodeIndices, nodeIndex);
                     if (added)
                         yield animationStep();
@@ -124,6 +126,7 @@ function DFS() {
 }
 function resolveDFS(currentNodeIndex, connections, visited) {
     return __awaiter(this, void 0, void 0, function* () {
+        var _a;
         visited[currentNodeIndex] = true;
         for (const nodeIndex of connections[currentNodeIndex]) {
             const added = addItemUnique(highlightedNodeIndices, currentNodeIndex);
@@ -132,6 +135,10 @@ function resolveDFS(currentNodeIndex, connections, visited) {
             if (!visited[nodeIndex]) {
                 highlightedEdges.push(new GraphEdge(currentNodeIndex, nodeIndex, EdgeType.Bidirectional, 0));
                 yield animationStep();
+                // eger baglanti yoksa bu node u da ciz
+                if (((_a = connections[nodeIndex]) === null || _a === void 0 ? void 0 : _a.length) == 0)
+                    if (addItemUnique(highlightedNodeIndices, nodeIndex))
+                        yield animationStep();
                 yield resolveDFS(nodeIndex, connections, visited);
             }
         }

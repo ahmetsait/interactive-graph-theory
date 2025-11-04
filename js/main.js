@@ -10,6 +10,13 @@ class Vector2 {
     get magnitude() {
         return Math.sqrt(this.magnitudeSqr);
     }
+    get normalized() {
+        const vector = new Vector2();
+        const mag = this.magnitude;
+        vector.x = this.x / mag;
+        vector.y = this.y / mag;
+        return vector;
+    }
     add(rhs) {
         if (rhs instanceof Vector2)
             return new Vector2(this.x + rhs.x, this.y + rhs.y);
@@ -36,6 +43,22 @@ class Vector2 {
     }
     dot(v) {
         return this.x * v.x + this.y * v.y;
+    }
+    rotated(angleDegrees) {
+        const result = new Vector2();
+        const theta = angleDegrees * Math.PI / 180;
+        result.x = this.x * Math.cos(theta) - this.y * Math.sin(theta);
+        result.y = this.x * Math.sin(theta) + this.y * Math.cos(theta);
+        return result;
+    }
+    rotatedAround(angleDegrees, pivot) {
+        const result = new Vector2();
+        const theta = angleDegrees * Math.PI / 180;
+        const dx = this.x - pivot.x;
+        const dy = this.y - pivot.y;
+        result.x = dx * Math.cos(theta) - dy * Math.sin(theta) + pivot.x;
+        result.y = dx * Math.sin(theta) + dy * Math.cos(theta) + pivot.y;
+        return result;
     }
 }
 class GraphNode {
@@ -89,8 +112,7 @@ var State;
 var EdgeType;
 (function (EdgeType) {
     EdgeType[EdgeType["Bidirectional"] = 0] = "Bidirectional";
-    EdgeType[EdgeType["FirstToSecond"] = 1] = "FirstToSecond";
-    EdgeType[EdgeType["SecondToFirst"] = 2] = "SecondToFirst";
+    EdgeType[EdgeType["Directional"] = 1] = "Directional";
 })(EdgeType || (EdgeType = {}));
 ;
 function clearCanvas(canvas, ctx, color) {
@@ -205,6 +227,7 @@ document.addEventListener("keydown", (e) => {
 });
 let nodes = [];
 let edges = [];
+//#region Import/Export
 function importDialog() {
     const textarea = document.getElementById("import");
     textarea.value = "";
@@ -230,7 +253,6 @@ function exportToClipboard() {
         navigator.clipboard.writeText(textarea.value);
     closeDialog("export-dialog");
 }
-//#region Import/Export
 const dropArea = document.getElementById('drop-area');
 const fileInput = document.getElementById('file-input');
 ['dragenter', 'dragover', 'dragleave', 'drop'].forEach(eventName => {
@@ -612,8 +634,17 @@ function mouseup(event) {
             break;
         case State.DrawEdge:
             if (lastMouseDownNodeIndex !== -1 && mouseUpNodeIndex !== -1) {
-                if (!edges.some((edge) => edge.nodeIndex1 === lastMouseDownNodeIndex && edge.nodeIndex2 === mouseUpNodeIndex))
-                    edges.push(new GraphEdge(lastMouseDownNodeIndex, mouseUpNodeIndex, EdgeType.Bidirectional, 0));
+                if (!edges.some((edge) => (edge.nodeIndex1 === lastMouseDownNodeIndex && edge.nodeIndex2 === mouseUpNodeIndex) ||
+                    (edge.nodeIndex1 === mouseUpNodeIndex && edge.nodeIndex2 === lastMouseDownNodeIndex)))
+                    edges.push(new GraphEdge(lastMouseDownNodeIndex, mouseUpNodeIndex, EdgeType.Directional, 0));
+                else {
+                    const edge = edges.find((e) => (e.nodeIndex1 === mouseUpNodeIndex && e.nodeIndex2 === lastMouseDownNodeIndex));
+                    if (edge) {
+                        const index = edges.indexOf(edge);
+                        if (edge.edgeType === EdgeType.Directional)
+                            edges[index].edgeType = EdgeType.Bidirectional;
+                    }
+                }
             }
             break;
         case State.DeleteEdge:
@@ -803,7 +834,7 @@ function touchend(event) {
             case State.DrawEdge:
                 if (lastSingleTouchStartNodeIndex !== -1 && touchInfo.touchOnNodeIndex !== -1) {
                     if (!edges.some((edge) => edge.nodeIndex1 === lastSingleTouchStartNodeIndex && edge.nodeIndex2 === touchInfo.touchOnNodeIndex))
-                        edges.push(new GraphEdge(lastSingleTouchStartNodeIndex, touchInfo.touchOnNodeIndex, EdgeType.Bidirectional, 0));
+                        edges.push(new GraphEdge(lastSingleTouchStartNodeIndex, touchInfo.touchOnNodeIndex, EdgeType.Directional, 0));
                 }
                 break;
             case State.BoxSelect:
@@ -879,6 +910,19 @@ function draw(timeStamp) {
             const node2 = nodes[edge.nodeIndex2];
             if (node1 === undefined || node2 === undefined)
                 throw new Error("Edge has missing nodes.");
+            if (edge.edgeType === EdgeType.Directional) {
+                const edgeDir = node2.position.sub(node1.position).normalized;
+                const intPoint = node1.position.add(node2.position.sub(node1.position).add(node1.position.sub(node2.position).normalized.mul(node2.radius)));
+                const middlePoint = intPoint.sub(edgeDir.mul(10));
+                const firstPoint = middlePoint.rotatedAround(30, intPoint);
+                const secondPoint = middlePoint.rotatedAround(-30, intPoint);
+                ctx.fillStyle = "gray";
+                ctx.beginPath();
+                ctx.moveTo(intPoint.x, intPoint.y);
+                ctx.lineTo(firstPoint.x, firstPoint.y);
+                ctx.lineTo(secondPoint.x, secondPoint.y);
+                ctx.fill();
+            }
             ctx.beginPath();
             ctx.moveTo(node1.position.x, node1.position.y);
             ctx.lineTo(node2.position.x, node2.position.y);

@@ -17,7 +17,8 @@ function gatherConnections() {
 	}
 	for (const edge of edges) {
 		addItemUnique(connections[edge.nodeIndex1]!, edge.nodeIndex2);
-		addItemUnique(connections[edge.nodeIndex2]!, edge.nodeIndex1);
+		if (edge.edgeType == EdgeType.Bidirectional)
+			addItemUnique(connections[edge.nodeIndex2]!, edge.nodeIndex1);
 	}
 	return connections;
 }
@@ -81,6 +82,7 @@ async function BFS(){
 		for (const nodeIndex of connections[currentNodeIndex]!) {
 			if (!visited[nodeIndex]){
 				highlightedEdges.push(new GraphEdge(currentNodeIndex, nodeIndex, EdgeType.Bidirectional, 0));
+				await animationStep();
 				let added = addItemUnique(highlightedNodeIndices, nodeIndex);
 				if (added) await animationStep();
 				queue.push(nodeIndex);
@@ -118,6 +120,8 @@ async function resolveDFS(currentNodeIndex: number, connections: number[][], vis
 		if (!visited[nodeIndex]){
 			highlightedEdges.push(new GraphEdge(currentNodeIndex, nodeIndex, EdgeType.Bidirectional, 0));
 			await animationStep();
+			if (connections[nodeIndex]?.length == 0)
+				if (addItemUnique(highlightedNodeIndices, nodeIndex)) await animationStep();
 			await resolveDFS(nodeIndex, connections, visited);
 		}
 	}

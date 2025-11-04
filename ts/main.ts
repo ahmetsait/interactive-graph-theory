@@ -11,6 +11,14 @@ class Vector2 {
 		return Math.sqrt(this.magnitudeSqr);
 	}
 
+	public get normalized(): Vector2{
+		const vector = new Vector2()
+		const mag = this.magnitude;
+		vector.x = this.x / mag;
+		vector.y = this.y / mag;
+		return vector;
+	}
+
 	public add(rhs: Vector2 | number): Vector2 {
 		if (rhs instanceof Vector2)
 			return new Vector2(this.x + rhs.x, this.y + rhs.y);
@@ -41,6 +49,24 @@ class Vector2 {
 
 	public dot(v: Vector2): number {
 		return this.x * v.x + this.y * v.y;
+	}
+
+	public rotated(angleDegrees: number): Vector2 {
+		const result = new Vector2();
+		const theta = angleDegrees * Math.PI / 180;
+		result.x = this.x * Math.cos(theta) - this.y * Math.sin(theta);
+		result.y = this.x * Math.sin(theta) + this.y * Math.cos(theta);
+		return result;
+	}
+
+	public rotatedAround(angleDegrees: number, pivot: Vector2) : Vector2{
+		const result = new Vector2();
+		const theta = angleDegrees * Math.PI / 180;
+		const dx = this.x - pivot.x;
+		const dy = this.y - pivot.y;
+		result.x = dx * Math.cos(theta) - dy * Math.sin(theta) + pivot.x;
+		result.y = dx * Math.sin(theta) + dy * Math.cos(theta) + pivot.y;
+		return result;
 	}
 }
 
@@ -95,8 +121,7 @@ enum State {
 
 enum EdgeType{
 	Bidirectional,
-	FirstToSecond,
-	SecondToFirst
+	Directional
 };
 
 function clearCanvas(canvas: HTMLCanvasElement, ctx: CanvasRenderingContext2D, color: string) {
@@ -222,6 +247,8 @@ document.addEventListener("keydown", (e: KeyboardEvent) => {
 let nodes: GraphNode[] = [];
 let edges: GraphEdge[] = [];
 
+//#region Import/Export
+
 function importDialog() {
 	const textarea = document.getElementById("import") as HTMLTextAreaElement;
 	textarea.value = "";
@@ -250,9 +277,6 @@ function exportToClipboard() {
 		navigator.clipboard.writeText(textarea.value);
 	closeDialog("export-dialog");
 }
-
-
-//#region Import/Export
 
 const dropArea = document.getElementById('drop-area');
 const fileInput = document.getElementById('file-input') as HTMLInputElement;
@@ -694,8 +718,18 @@ function mouseup(event: MouseEvent) {
 
 		case State.DrawEdge:
 			if (lastMouseDownNodeIndex !== -1 && mouseUpNodeIndex !== -1) {
-				if (!edges.some((edge) => edge.nodeIndex1 === lastMouseDownNodeIndex && edge.nodeIndex2 === mouseUpNodeIndex))
-					edges.push(new GraphEdge(lastMouseDownNodeIndex, mouseUpNodeIndex, EdgeType.Bidirectional, 0));
+				if (!edges.some((edge) => (edge.nodeIndex1 === lastMouseDownNodeIndex && edge.nodeIndex2 === mouseUpNodeIndex) ||
+						(edge.nodeIndex1 === mouseUpNodeIndex && edge.nodeIndex2 === lastMouseDownNodeIndex)))
+					edges.push(new GraphEdge(lastMouseDownNodeIndex, mouseUpNodeIndex, EdgeType.Directional, 0));
+				else{
+					const edge = edges.find((e) => (e.nodeIndex1 === mouseUpNodeIndex && e.nodeIndex2 === lastMouseDownNodeIndex)) as GraphEdge;
+					if (edge)
+					{
+						const index = edges.indexOf(edge);
+						if (edge.edgeType === EdgeType.Directional)
+						edges[index]!.edgeType = EdgeType.Bidirectional
+					}
+				}
 			}
 			break;
 
@@ -928,7 +962,7 @@ function touchend(event: TouchEvent) {
 			case State.DrawEdge:
 				if (lastSingleTouchStartNodeIndex !== -1 && touchInfo.touchOnNodeIndex !== -1) {
 					if (!edges.some((edge) => edge.nodeIndex1 === lastSingleTouchStartNodeIndex && edge.nodeIndex2 === touchInfo.touchOnNodeIndex))
-						edges.push(new GraphEdge(lastSingleTouchStartNodeIndex, touchInfo.touchOnNodeIndex, EdgeType.Bidirectional, 0));
+						edges.push(new GraphEdge(lastSingleTouchStartNodeIndex, touchInfo.touchOnNodeIndex, EdgeType.Directional, 0));
 				}
 				break;
 
@@ -1017,6 +1051,20 @@ function draw(timeStamp: number) {
 			const node2 = nodes[edge.nodeIndex2];
 			if (node1 === undefined || node2 === undefined)
 				throw new Error("Edge has missing nodes.");
+
+			if (edge.edgeType === EdgeType.Directional){
+				const edgeDir = node2.position.sub(node1.position).normalized;
+				const intPoint = node1.position.add(node2.position.sub(node1.position).add(node1.position.sub(node2.position).normalized.mul(node2.radius)));
+				const middlePoint = intPoint.sub(edgeDir.mul(10));
+				const firstPoint = middlePoint.rotatedAround(30, intPoint);
+				const secondPoint = middlePoint.rotatedAround(-30, intPoint);
+				ctx.fillStyle = "gray";
+				ctx.beginPath();
+				ctx.moveTo(intPoint.x, intPoint.y);
+				ctx.lineTo(firstPoint.x, firstPoint.y);
+				ctx.lineTo(secondPoint.x, secondPoint.y);
+				ctx.fill();
+			}
 			ctx.beginPath();
 			ctx.moveTo(node1.position.x, node1.position.y);
 			ctx.lineTo(node2.position.x, node2.position.y);
