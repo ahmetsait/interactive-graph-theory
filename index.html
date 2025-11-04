@@ -141,6 +141,7 @@
 				<button class="modal-close-button"><i class="fa-regular fa-circle-xmark"></i></button>
 			</div>
 			<div class="modal-content">
+				<input type="file" id="fileInput">
 				<textarea id="import"></textarea>
 			</div>
 			<div class="modal-footer">
@@ -160,6 +161,7 @@
 				<textarea id="export"></textarea>
 			</div>
 			<div class="modal-footer">
+				<button onclick="downloadExport()" class="modal-ok">Download</button>
 				<button onclick="exportToClipboard()" class="modal-ok">Copy</button>
 				<button onclick="closeDialog('export-dialog')" class="modal-cancel">Cancel</button>
 			</div>

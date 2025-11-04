@@ -55,7 +55,9 @@ class GraphNode {
 class GraphEdge {
 	constructor(
 		public nodeIndex1: number,
-		public nodeIndex2: number) { }
+		public nodeIndex2: number,
+		public edgeType: EdgeType,
+		public weight: number) { }
 }
 
 class Graph {
@@ -89,6 +91,12 @@ enum State {
 	Pan,
 	Zoom,
 	TouchCameraControl, // TODO: Mixed pan+zoom+rotate
+};
+
+enum EdgeType{
+	Bidirectional,
+	FirstToSecond,
+	SecondToFirst
 };
 
 function clearCanvas(canvas: HTMLCanvasElement, ctx: CanvasRenderingContext2D, color: string) {
@@ -243,8 +251,46 @@ function exportToClipboard() {
 	closeDialog("export-dialog");
 }
 
+
+//#region Import from local file
+
+const fileInput = document.getElementById('fileInput') as HTMLInputElement;
+
+fileInput.addEventListener('change', (event) => {
+	const target = event.target as HTMLInputElement;
+	if (target.files && target.files.length > 0) {
+		const selectedFile = target?.files?.[0];
+		if (!selectedFile) return;
+		console.log('Selected file:', selectedFile.name);
+		const reader = new FileReader();
+		reader.onload = (e) => {
+			const fileContent = e.target?.result as string;
+			const textarea = document.getElementById("import") as HTMLTextAreaElement;
+			textarea.value = fileContent;
+			//console.log('File content:', fileContent);
+		};
+		reader.readAsText(selectedFile);
+	}
+});
+
+//#endregion
+
 function exportJson() {
 	return new Graph(nodes, edges).serializeJson();
+}
+
+function downloadExport(){
+	const textarea = document.getElementById("export") as HTMLTextAreaElement;
+	const blob = new Blob([textarea.value], {type: "text/json"});
+	const dataUrl = window.URL.createObjectURL(blob);
+
+	const fileName = 'graph.json';
+    const link = document.createElement('a');
+    link.href = dataUrl;
+    link.download = fileName;
+	link.click();
+	window.URL.revokeObjectURL(dataUrl);
+	link.remove();
 }
 
 function importJson(json: string) {
@@ -607,7 +653,7 @@ function mouseup(event: MouseEvent) {
 		case State.DrawEdge:
 			if (lastMouseDownNodeIndex !== -1 && mouseUpNodeIndex !== -1) {
 				if (!edges.some((edge) => edge.nodeIndex1 === lastMouseDownNodeIndex && edge.nodeIndex2 === mouseUpNodeIndex))
-					edges.push(new GraphEdge(lastMouseDownNodeIndex, mouseUpNodeIndex));
+					edges.push(new GraphEdge(lastMouseDownNodeIndex, mouseUpNodeIndex, EdgeType.Bidirectional, 0));
 			}
 			break;
 
@@ -840,7 +886,7 @@ function touchend(event: TouchEvent) {
 			case State.DrawEdge:
 				if (lastSingleTouchStartNodeIndex !== -1 && touchInfo.touchOnNodeIndex !== -1) {
 					if (!edges.some((edge) => edge.nodeIndex1 === lastSingleTouchStartNodeIndex && edge.nodeIndex2 === touchInfo.touchOnNodeIndex))
-						edges.push(new GraphEdge(lastSingleTouchStartNodeIndex, touchInfo.touchOnNodeIndex));
+						edges.push(new GraphEdge(lastSingleTouchStartNodeIndex, touchInfo.touchOnNodeIndex, EdgeType.Bidirectional, 0));
 				}
 				break;
 

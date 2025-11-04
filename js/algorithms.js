@@ -58,7 +58,7 @@ function resolveDijkstra(currentNodeIndex, connections, visited, distances, anim
         if (animate)
             yield animationStep();
         for (const nodeIndex of connections[currentNodeIndex]) {
-            highlightedEdges.push(new GraphEdge(currentNodeIndex, nodeIndex));
+            highlightedEdges.push(new GraphEdge(currentNodeIndex, nodeIndex, EdgeType.Bidirectional, 0));
             if (animate)
                 yield animationStep();
             if (distances[currentNodeIndex] + 1 < distances[nodeIndex]) {
@@ -92,7 +92,7 @@ function BFS() {
                 yield animationStep();
             for (const nodeIndex of connections[currentNodeIndex]) {
                 if (!visited[nodeIndex]) {
-                    highlightedEdges.push(new GraphEdge(currentNodeIndex, nodeIndex));
+                    highlightedEdges.push(new GraphEdge(currentNodeIndex, nodeIndex, EdgeType.Bidirectional, 0));
                     let added = addItemUnique(highlightedNodeIndices, nodeIndex);
                     if (added)
                         yield animationStep();
@@ -130,7 +130,7 @@ function resolveDFS(currentNodeIndex, connections, visited) {
             if (added)
                 yield animationStep();
             if (!visited[nodeIndex]) {
-                highlightedEdges.push(new GraphEdge(currentNodeIndex, nodeIndex));
+                highlightedEdges.push(new GraphEdge(currentNodeIndex, nodeIndex, EdgeType.Bidirectional, 0));
                 yield animationStep();
                 yield resolveDFS(nodeIndex, connections, visited);
             }

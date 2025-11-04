@@ -47,9 +47,11 @@ class GraphNode {
     }
 }
 class GraphEdge {
-    constructor(nodeIndex1, nodeIndex2) {
+    constructor(nodeIndex1, nodeIndex2, edgeType, weight) {
         this.nodeIndex1 = nodeIndex1;
         this.nodeIndex2 = nodeIndex2;
+        this.edgeType = edgeType;
+        this.weight = weight;
     }
 }
 class Graph {
@@ -83,6 +85,13 @@ var State;
     State[State["Zoom"] = 10] = "Zoom";
     State[State["TouchCameraControl"] = 11] = "TouchCameraControl";
 })(State || (State = {}));
+;
+var EdgeType;
+(function (EdgeType) {
+    EdgeType[EdgeType["Bidirectional"] = 0] = "Bidirectional";
+    EdgeType[EdgeType["FirstToSecond"] = 1] = "FirstToSecond";
+    EdgeType[EdgeType["SecondToFirst"] = 2] = "SecondToFirst";
+})(EdgeType || (EdgeType = {}));
 ;
 function clearCanvas(canvas, ctx, color) {
     ctx.save();
@@ -221,8 +230,42 @@ function exportToClipboard() {
         navigator.clipboard.writeText(textarea.value);
     closeDialog("export-dialog");
 }
+//#region Import from local file
+const fileInput = document.getElementById('fileInput');
+fileInput.addEventListener('change', (event) => {
+    var _a;
+    const target = event.target;
+    if (target.files && target.files.length > 0) {
+        const selectedFile = (_a = target === null || target === void 0 ? void 0 : target.files) === null || _a === void 0 ? void 0 : _a[0];
+        if (!selectedFile)
+            return;
+        console.log('Selected file:', selectedFile.name);
+        const reader = new FileReader();
+        reader.onload = (e) => {
+            var _a;
+            const fileContent = (_a = e.target) === null || _a === void 0 ? void 0 : _a.result;
+            const textarea = document.getElementById("import");
+            textarea.value = fileContent;
+            //console.log('File content:', fileContent);
+        };
+        reader.readAsText(selectedFile);
+    }
+});
+//#endregion
 function exportJson() {
     return new Graph(nodes, edges).serializeJson();
+}
+function downloadExport() {
+    const textarea = document.getElementById("export");
+    const blob = new Blob([textarea.value], { type: "text/json" });
+    const dataUrl = window.URL.createObjectURL(blob);
+    const fileName = 'graph.json';
+    const link = document.createElement('a');
+    link.href = dataUrl;
+    link.download = fileName;
+    link.click();
+    window.URL.revokeObjectURL(dataUrl);
+    link.remove();
 }
 function importJson(json) {
     let graph = Graph.deserializeJson(json);
@@ -537,7 +580,7 @@ function mouseup(event) {
         case State.DrawEdge:
             if (lastMouseDownNodeIndex !== -1 && mouseUpNodeIndex !== -1) {
                 if (!edges.some((edge) => edge.nodeIndex1 === lastMouseDownNodeIndex && edge.nodeIndex2 === mouseUpNodeIndex))
-                    edges.push(new GraphEdge(lastMouseDownNodeIndex, mouseUpNodeIndex));
+                    edges.push(new GraphEdge(lastMouseDownNodeIndex, mouseUpNodeIndex, EdgeType.Bidirectional, 0));
             }
             break;
         case State.DeleteEdge:
@@ -727,7 +770,7 @@ function touchend(event) {
             case State.DrawEdge:
                 if (lastSingleTouchStartNodeIndex !== -1 && touchInfo.touchOnNodeIndex !== -1) {
                     if (!edges.some((edge) => edge.nodeIndex1 === lastSingleTouchStartNodeIndex && edge.nodeIndex2 === touchInfo.touchOnNodeIndex))
-                        edges.push(new GraphEdge(lastSingleTouchStartNodeIndex, touchInfo.touchOnNodeIndex));
+                        edges.push(new GraphEdge(lastSingleTouchStartNodeIndex, touchInfo.touchOnNodeIndex, EdgeType.Bidirectional, 0));
                 }
                 break;
             case State.BoxSelect:
