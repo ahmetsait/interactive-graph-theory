@@ -219,6 +219,7 @@ ctx.imageSmoothingQuality = "high";
 
 new ResizeObserver(resize).observe(canvas);
 window.addEventListener("load", load);
+//window.addEventListener("onbeforeunload", unload);
 canvas.addEventListener("mousedown", mousedown);
 canvas.addEventListener("mousemove", mousemove);
 canvas.addEventListener("mouseup", mouseup);
@@ -372,6 +373,33 @@ function importJson(json: string) {
 	labelCounter = max + 1;
 	draw(window.performance.now());
 }
+//#endregion
+
+//#region LocalStorage
+
+function loadState(key: string){
+	try {
+		const serializedState = localStorage.getItem(key);
+		console.log("STATE: " + serializedState);
+		if (serializedState === null)
+			return;
+		importJson(JSON.parse(serializedState));
+	} catch (error) {
+		console.error("Error loading state from localStorage:", error);
+		return;
+	}
+}
+
+function saveState(key: string, state: string){
+	try {
+		const serializedState = JSON.stringify(state);
+		localStorage.setItem(key, serializedState);
+		debugger;
+	} catch (error) {
+		console.error("Error saving state to localStorage:", error);
+	}
+}
+
 //#endregion
 
 let state = State.None;
@@ -714,20 +742,24 @@ function mouseup(event: MouseEvent) {
 					"",
 				)
 			);
+			saveLastState();
 			break;
 
 		case State.DrawEdge:
 			if (lastMouseDownNodeIndex !== -1 && mouseUpNodeIndex !== -1) {
 				if (!edges.some((edge) => (edge.nodeIndex1 === lastMouseDownNodeIndex && edge.nodeIndex2 === mouseUpNodeIndex) ||
-						(edge.nodeIndex1 === mouseUpNodeIndex && edge.nodeIndex2 === lastMouseDownNodeIndex)))
-					edges.push(new GraphEdge(lastMouseDownNodeIndex, mouseUpNodeIndex, EdgeType.Directional, 0));
+						(edge.nodeIndex1 === mouseUpNodeIndex && edge.nodeIndex2 === lastMouseDownNodeIndex))){
+						edges.push(new GraphEdge(lastMouseDownNodeIndex, mouseUpNodeIndex, EdgeType.Directional, 0));
+						saveLastState();
+					}
 				else{
 					const edge = edges.find((e) => (e.nodeIndex1 === mouseUpNodeIndex && e.nodeIndex2 === lastMouseDownNodeIndex)) as GraphEdge;
 					if (edge)
 					{
 						const index = edges.indexOf(edge);
 						if (edge.edgeType === EdgeType.Directional)
-						edges[index]!.edgeType = EdgeType.Bidirectional
+							edges[index]!.edgeType = EdgeType.Bidirectional
+						saveLastState();
 					}
 				}
 			}
@@ -744,7 +776,6 @@ function mouseup(event: MouseEvent) {
 
 	lastMouseDownNodeIndex = -1;
 	state = State.None;
-
 	draw(window.performance.now());
 }
 
@@ -957,12 +988,15 @@ function touchend(event: TouchEvent) {
 						"",
 					)
 				);
+				saveLastState();
 				break;
 
 			case State.DrawEdge:
 				if (lastSingleTouchStartNodeIndex !== -1 && touchInfo.touchOnNodeIndex !== -1) {
-					if (!edges.some((edge) => edge.nodeIndex1 === lastSingleTouchStartNodeIndex && edge.nodeIndex2 === touchInfo.touchOnNodeIndex))
+					if (!edges.some((edge) => edge.nodeIndex1 === lastSingleTouchStartNodeIndex && edge.nodeIndex2 === touchInfo.touchOnNodeIndex)){
 						edges.push(new GraphEdge(lastSingleTouchStartNodeIndex, touchInfo.touchOnNodeIndex, EdgeType.Directional, 0));
+						saveLastState();
+					}
 				}
 				break;
 
@@ -996,13 +1030,18 @@ function touchend(event: TouchEvent) {
 		touchHoldTimer = undefined;
 		state = State.None;
 	}
-
 	draw(window.performance.now());
 }
 
 function load() {
+	loadState("lastState");
 	resize();
 	draw(window.performance.now());
+}
+
+function saveLastState(){
+	const currentState = exportJson();
+	saveState("lastState", currentState);
 }
 
 function resize(entries?: ResizeObserverEntry[], observer?: ResizeObserver) {

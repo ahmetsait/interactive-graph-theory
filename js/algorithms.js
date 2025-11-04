@@ -135,7 +135,6 @@ function resolveDFS(currentNodeIndex, connections, visited) {
             if (!visited[nodeIndex]) {
                 highlightedEdges.push(new GraphEdge(currentNodeIndex, nodeIndex, EdgeType.Bidirectional, 0));
                 yield animationStep();
-                // eger baglanti yoksa bu node u da ciz
                 if (((_a = connections[nodeIndex]) === null || _a === void 0 ? void 0 : _a.length) == 0)
                     if (addItemUnique(highlightedNodeIndices, nodeIndex))
                         yield animationStep();

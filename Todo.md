@@ -3,7 +3,7 @@ To Do
 - [x] Directed edges and cyclic nodes
 - [x] Import/Export graph internal format (exact state)
 - [x] Import/Export graph simple text format
-- [ ] Save last state (client side)
+- [x] Save last state (client side)
 - [ ] Graph from:
 	- [ ] Adjacency matrix
 	- [ ] Distance matrix
