@@ -667,7 +667,7 @@ function mouseup(event) {
             if (lastMouseDownNodeIndex !== -1 && mouseUpNodeIndex !== -1) {
                 if (!edges.some((edge) => (edge.nodeIndex1 === lastMouseDownNodeIndex && edge.nodeIndex2 === mouseUpNodeIndex) ||
                     (edge.nodeIndex1 === mouseUpNodeIndex && edge.nodeIndex2 === lastMouseDownNodeIndex))) {
-                    edges.push(new GraphEdge(lastMouseDownNodeIndex, mouseUpNodeIndex, EdgeType.Directional, 0));
+                    edges.push(new GraphEdge(lastMouseDownNodeIndex, mouseUpNodeIndex, EdgeType.Directional, 1));
                     saveLastState();
                 }
                 else {
@@ -688,7 +688,7 @@ function mouseup(event) {
                  {
                     const newNode = new GraphNode(new Vector2(mousePosition.x, mousePosition.y), nodeRadiusCurve(defaultNodeRadius), randomHslColor(), "");
                     nodes.push(newNode);
-                    edges.push(new GraphEdge(lastMouseDownNodeIndex, nodes.indexOf(newNode), EdgeType.Directional, 0));
+                    edges.push(new GraphEdge(lastMouseDownNodeIndex, nodes.indexOf(newNode), EdgeType.Directional, 1));
                     saveLastState();
                 }
             }
@@ -887,7 +887,7 @@ function touchend(event) {
             case State.DrawEdge:
                 if (lastSingleTouchStartNodeIndex !== -1 && touchInfo.touchOnNodeIndex !== -1) {
                     if (!edges.some((edge) => edge.nodeIndex1 === lastSingleTouchStartNodeIndex && edge.nodeIndex2 === touchInfo.touchOnNodeIndex)) {
-                        edges.push(new GraphEdge(lastSingleTouchStartNodeIndex, touchInfo.touchOnNodeIndex, EdgeType.Directional, 0));
+                        edges.push(new GraphEdge(lastSingleTouchStartNodeIndex, touchInfo.touchOnNodeIndex, EdgeType.Directional, null));
                         saveLastState();
                     }
                 }
@@ -896,7 +896,7 @@ function touchend(event) {
                         throw new Error("State machine bug.");
                     const newNode = new GraphNode(new Vector2(touchInfo.touchPosition.x, touchInfo.touchPosition.y), nodeRadiusCurve(defaultNodeRadius), randomHslColor(), "");
                     nodes.push(newNode);
-                    edges.push(new GraphEdge(lastMouseDownNodeIndex, nodes.indexOf(newNode), EdgeType.Directional, 0));
+                    edges.push(new GraphEdge(lastMouseDownNodeIndex, nodes.indexOf(newNode), EdgeType.Directional, null));
                     saveLastState();
                 }
                 break;
@@ -981,9 +981,9 @@ function draw(timeStamp) {
             if (edge.edgeType === EdgeType.Directional) {
                 const edgeDir = node2.position.sub(node1.position).normalized;
                 const intPoint = node1.position.add(node2.position.sub(node1.position).add(node1.position.sub(node2.position).normalized.mul(node2.radius)));
-                const middlePoint = intPoint.sub(edgeDir.mul(10));
-                const firstPoint = middlePoint.rotatedAround(30, intPoint);
-                const secondPoint = middlePoint.rotatedAround(-30, intPoint);
+                const arrowMidPoint = intPoint.sub(edgeDir.mul(10));
+                const firstPoint = arrowMidPoint.rotatedAround(30, intPoint);
+                const secondPoint = arrowMidPoint.rotatedAround(-30, intPoint);
                 ctx.fillStyle = "gray";
                 ctx.beginPath();
                 ctx.moveTo(intPoint.x, intPoint.y);
@@ -991,10 +991,24 @@ function draw(timeStamp) {
                 ctx.lineTo(secondPoint.x, secondPoint.y);
                 ctx.fill();
             }
+            ctx.strokeStyle = "gray";
             ctx.beginPath();
             ctx.moveTo(node1.position.x, node1.position.y);
             ctx.lineTo(node2.position.x, node2.position.y);
             ctx.stroke();
+            // Draw edge weight
+            if (edge.weight !== null) {
+                const edgeCenter = node1.position.add(node2.position).div(2);
+                ctx.fillStyle = "white";
+                ctx.beginPath();
+                ctx.arc(edgeCenter.x, edgeCenter.y, 15, 0, 360);
+                ctx.fill();
+                ctx.fillStyle = "blue";
+                ctx.font = "bold 15px sans-serif";
+                ctx.textBaseline = "middle";
+                ctx.textAlign = "center";
+                ctx.fillText(edge.weight.toString(), edgeCenter.x, edgeCenter.y);
+            }
         }
         for (const edge of highlightedEdges) {
             ctx.strokeStyle = "red";

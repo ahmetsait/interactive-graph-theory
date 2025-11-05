@@ -30,36 +30,54 @@ async function dijkstra() {
 	else
 		return;
 
-	let visited = Array<boolean>(nodes.length).fill(false);
-	let connections = gatherConnections();
-	let distances = Array<number>(nodes.length).fill(Infinity);
+	const connections = gatherConnections();
+	const n = nodes.length;
+	const visited = Array<boolean>(n).fill(false);
+	const distances: number[] = new Array(n).fill(Infinity);
 	distances[startNodeIndex] = 0;
-	for (let i = 0; i < nodes.length; i++) {
-		const node = nodes[i]!;
-		node.label = distances[i] === Infinity ? "∞" : distances[i]!.toString();
+
+	for (let i = 0; i < n; i++)
+		nodes[i]!.label = distances[i] === Infinity ? "∞" : distances[i]!.toString();
+	if (!distances) return;
+	while (true) {
+		let best = Infinity;
+		let u = -1;
+		for (let i = 0; i < n; i++) {
+			const d = distances[i] ?? Infinity;
+			if (!visited[i] && d < best) {
+				best = d;
+				u = i;
+			}	
+		}
+
+		if (u === -1) break;
+		visited[u] = true;
+		addItemUnique(highlightedNodeIndices, u);
+		highlightedEdges = [];
+		await animationStep();
+
+		for (const v of connections[u]!) {
+			const w = getEdgeWeight(u, v);
+			highlightedEdges.push(new GraphEdge(u, v, EdgeType.Bidirectional, 0));
+			await animationStep();
+			if (distances[u]! + w < distances[v]!) {
+				distances[v]! = distances[u]! + w;
+				nodes[v]!.label = distances[v]!.toString();
+			}
+		}
+		draw(window.performance.now());
 	}
-	await resolveDijkstra(startNodeIndex, connections, visited, distances, true);
+
 	highlightedNodeIndices = [];
 	highlightedEdges = [];
 	draw(window.performance.now());
 }
 
-async function resolveDijkstra(currentNodeIndex: number, connections: number[][], visited: boolean[], distances: number[], animate: boolean) {
-	addItemUnique(highlightedNodeIndices, currentNodeIndex);
-	highlightedEdges = [];
-	if (animate) await animationStep();
-	for (const nodeIndex of connections[currentNodeIndex]!) {
-		highlightedEdges.push(new GraphEdge(currentNodeIndex, nodeIndex, EdgeType.Bidirectional, 0));
-		if (animate) await animationStep();
-		if (distances[currentNodeIndex]! + 1 < distances[nodeIndex]!) {
-			distances[nodeIndex]! = distances[currentNodeIndex]! + 1;
-			nodes[nodeIndex]!.label = distances[nodeIndex] === Infinity ? "∞" : distances[nodeIndex]!.toString();
-			await resolveDijkstra(nodeIndex, connections, visited, distances, animate);
-			addItemUnique(highlightedNodeIndices, currentNodeIndex);
-			highlightedEdges = [];
-			if (animate) await animationStep();
-		}
-	}
+function getEdgeWeight(a: number, b: number): number {
+	const weight = edges.find((e)=> e.nodeIndex1 === a && e.nodeIndex2 === b || (e.edgeType === EdgeType.Bidirectional && e.nodeIndex1 === b && e.nodeIndex2 === a))?.weight;
+	if (weight)
+		return weight;
+	return NaN;
 }
 
 async function BFS(){
