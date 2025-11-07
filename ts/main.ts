@@ -257,10 +257,10 @@ const ZOOM_ANIM_MS = 150;
 
 // force-directed variables
 let physicsRunning = false;
-const repulsion = 4000;
-const spring = 0.002;
-const damping = 0.9;
-const maxSpeed = 5;
+const repulsion = 10000;
+const spring = 0.01;
+const damping = 5;
+const maxSpeed = 10;
 const idealDist = 80;
 
 const canvas = document.getElementById("canvas") as HTMLCanvasElement;
