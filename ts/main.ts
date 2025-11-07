@@ -124,6 +124,13 @@ enum EdgeType{
 	Directional
 };
 
+class ScreenData{
+	constructor(
+		public offset: Vector2,
+		public zoom: number
+	){}
+}
+
 function clearCanvas(canvas: HTMLCanvasElement, ctx: CanvasRenderingContext2D, color: string) {
 	ctx.save();
 	try {
@@ -211,6 +218,20 @@ const defaultNodeRadius = 12.5;	// px
 const edgeThickness = 2;	// px
 
 const touchEnabled = Modernizr.touchevents;
+
+const zoomSpeed = 0.001;
+const minZoom = 0.2;
+const maxZoom = 3;
+let targetZoom = 1;
+let zoomAnimFrame: number | null = null;
+let animating = false;
+let animId: number | null = null;
+let animStartTime = 0;
+let animStartLogZ = 0;
+let animTargetLogZ = 0;
+let pivotScreen = new Vector2();
+let pivotWorld  = new Vector2();
+const ZOOM_ANIM_MS = 150;
 
 const canvas = document.getElementById("canvas") as HTMLCanvasElement;
 const ctx = canvas.getContext("2d", { alpha: false })!;
@@ -404,7 +425,8 @@ function saveState(key: string, state: string){
 let state = State.None;
 
 // Camera transform
-let offset = new Vector2;
+//let offset = new Vector2;
+let screenData = new ScreenData(new Vector2(), 1);
 
 let selectedNodeIndices: number[] = [];
 let mouseHoverNodeIndex: number = -1;
@@ -469,12 +491,22 @@ function getNodeIndicesInRect(box: DOMRectReadOnly): number[] {
 	}
 	return nodeIndices;
 }
-
+/*
 function getPositionRelativeToElement(element: Element | null, x: number, y: number): Vector2 {
 	if (element === null)
 		return new Vector2(x, y);
 	let rect = element.getBoundingClientRect();
-	return new Vector2((x - rect.left - offset.x) | 0, (y - rect.top - offset.y) | 0);
+	return new Vector2((x - rect.left - screenData.offset.x) | 0, (y - rect.top - screenData.offset.y) | 0);
+}*/
+
+function getPositionRelativeToElement(element: Element | null, x: number, y: number): Vector2 {
+	if (element === null) return new Vector2(x, y);
+	const rect = element.getBoundingClientRect();
+	// offset’i çıkar, ZOOM’A BÖL → dünya koordinatı
+	return new Vector2(
+		((x - rect.left - screenData.offset.x) / screenData.zoom) | 0,
+		((y - rect.top  - screenData.offset.y) / screenData.zoom) | 0
+	);
 }
 
 function nodeRadiusCurve(radius: number): number {
@@ -667,7 +699,7 @@ function mousemove(event: MouseEvent) {
 			break;
 
 		case State.Pan:
-			offset = offset.add(movement);
+			screenData.offset = screenData.offset.add(movement);
 			break;
 
 		case State.ScanSelect:
@@ -805,9 +837,35 @@ function mouseup(event: MouseEvent) {
 }
 
 function wheel(event: WheelEvent) {
-	// TODO: Camera zoom
+  event.preventDefault();
 
-	draw(window.performance.now());
+  const factor = Math.exp(-event.deltaY * zoomSpeed * 5);
+
+  const rect = canvas.getBoundingClientRect();
+  pivotScreen = new Vector2(event.clientX - rect.left, event.clientY - rect.top);
+  pivotWorld  = pivotScreen.sub(screenData.offset).div(screenData.zoom);
+
+  const currentLogZ = Math.log(screenData.zoom);
+  const targetZ = Math.min(maxZoom, Math.max(minZoom, screenData.zoom * factor));
+  animStartLogZ  = currentLogZ;
+  animTargetLogZ = Math.log(targetZ);
+  animStartTime  = performance.now();
+
+  if (animId !== null) cancelAnimationFrame(animId);
+
+  const step = () => {
+    const t = Math.min(1, (performance.now() - animStartTime) / ZOOM_ANIM_MS);
+    const logZ = animStartLogZ + (animTargetLogZ - animStartLogZ) * t;
+    const z = Math.exp(logZ);
+    screenData.zoom   = z;
+    screenData.offset = pivotScreen.sub(pivotWorld.mul(z));
+
+    draw(performance.now());
+    if (t < 1) animId = requestAnimationFrame(step);
+    else       animId = null;
+  };
+
+  animId = requestAnimationFrame(step);
 }
 
 const touchDoubleTapTimeout = 300; // ms
@@ -975,7 +1033,7 @@ function touchmove(event: TouchEvent) {
 		switch (state) {
 			case State.Pan:
 				let deltaAvg = touchInfo1.touchDelta.add(touchInfo2.touchDelta).div(2);
-				offset = offset.add(deltaAvg);
+				screenData.offset = screenData.offset.add(deltaAvg);
 				break;
 		}
 	}
@@ -1114,8 +1172,21 @@ function draw(timeStamp: number) {
 	ctx.save();
 
 	try {
-		ctx.scale(window.devicePixelRatio, window.devicePixelRatio);
-		ctx.translate(offset.x, offset.y);
+		ctx.setTransform(1, 0, 0, 1, 0, 0);
+		ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+		ctx.setTransform(
+			screenData.zoom * window.devicePixelRatio, // scaleX
+			0,               // skewX
+			0,               // skewY
+			screenData.zoom * window.devicePixelRatio, // scaleY
+			screenData.offset.x * window.devicePixelRatio, // translateX
+			screenData.offset.y * window.devicePixelRatio // translateY
+		);
+
+
+		//ctx.scale(window.devicePixelRatio , window.devicePixelRatio);
+		//ctx.translate(screenData.offset.x, screenData.offset.y);
 		clearCanvas(canvas, ctx, "white");
 
 		ctx.strokeStyle = "gray";
