@@ -17,7 +17,7 @@ To Do
 	- [ ] PageRank & Weight based node radius
 - [ ] A way to simply show vertex degrees
 - [ ] Weighted edges
-- [ ] Force-directed graph simulation
+- [x] Force-directed graph simulation
 - [ ] Save PNG image
 - [ ] SVG generation
 - [ ] Graph generators for common patterns

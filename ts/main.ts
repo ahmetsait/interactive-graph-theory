@@ -84,6 +84,8 @@ class GraphNode {
 		public radius: number,
 		public color: string,
 		public label: string) { }
+	
+	public velocity: Vector2 = new Vector2();
 }
 
 class GraphEdge {
@@ -252,6 +254,14 @@ let animTargetLogZ = 0;
 let pivotScreen = new Vector2();
 let pivotWorld  = new Vector2();
 const ZOOM_ANIM_MS = 150;
+
+// force-directed variables
+let physicsRunning = false;
+const repulsion = 4000;
+const spring = 0.002;
+const damping = 0.9;
+const maxSpeed = 5;
+const idealDist = 80;
 
 const canvas = document.getElementById("canvas") as HTMLCanvasElement;
 const ctx = canvas.getContext("2d", { alpha: false })!;
@@ -931,6 +941,46 @@ let lastSingleTouchStartPosition: Vector2 | null = null;
 let lastSingleTouchPosition: Vector2 | null = null;
 let lastSingleTouchStartTimestamp: number = -1;
 let touchHoldTimer: number | undefined = undefined;
+
+function updatePhysics() {
+	if (!physicsRunning) return;
+
+	for (const n of nodes) {
+		n.velocity = new Vector2(0, 0);
+	}
+
+	for (const a of nodes) {
+		let force = new Vector2();
+		for (const b of nodes) {
+			if (a === b) continue;
+			const delta = a.position.sub(b.position);
+			let dist = delta.magnitude || 0.001;
+			const dir = delta.div(dist);
+			force = force.add(dir.mul(repulsion / (dist * dist)));
+		}
+		for (const e of edges) {
+			if (nodes[e.nodeIndex1] === a || nodes[e.nodeIndex2] === a) {
+				const other = nodes[e.nodeIndex1] === a ? nodes[e.nodeIndex2]! : nodes[e.nodeIndex1]!;
+				const delta = other.position.sub(a.position);
+				let dist = delta.magnitude || 0.001;
+				const dir = delta.div(dist);
+				force = force.add(dir.mul((dist - idealDist) * spring));
+			}
+		}
+		a.velocity = (a.velocity || new Vector2()).add(force).mul(damping);
+		if (a.velocity.magnitude > maxSpeed)
+			a.velocity = a.velocity.normalized.mul(maxSpeed);
+		a.position = a.position.add(a.velocity);
+	}
+	draw(performance.now());
+	requestAnimationFrame(updatePhysics);
+}
+
+function togglePhysics(){
+	physicsRunning=!physicsRunning;
+	if(physicsRunning)
+		updatePhysics();
+};
 
 function touchstart(event: TouchEvent) {
 	event.preventDefault();
