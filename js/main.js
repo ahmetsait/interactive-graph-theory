@@ -217,6 +217,7 @@ function randomHslColor(lightness = 0.50) {
 const defaultNodeRadius = 12.5; // px
 const edgeThickness = 2; // px
 const touchEnabled = Modernizr.touchevents;
+// zoom anim variables
 const zoomSpeed = 0.001;
 const minZoom = 0.2;
 const maxZoom = 3;
@@ -387,23 +388,6 @@ function importJson(json) {
         console.error("Error importing JSON:", err);
         alert("Invalid or corrupted graph JSON file.");
     }
-    /*
-    let graph = Graph.deserializeJson(json);
-    resetAll();
-    nodes = graph.nodes;
-    edges = graph.edges;
-    screenData = graph.screenData;
-
-
-
-    let max = 1;
-    for (const node of nodes) {
-        let label = parseInt(node.label!);
-        if (!isNaN(label) && label > max)
-            max = label;
-    }
-    labelCounter = max + 1;
-    draw(window.performance.now());*/
 }
 //#endregion
 //#region LocalStorage
@@ -659,7 +643,7 @@ function mousedown(event) {
 function mousemove(event) {
     let mousePosition = getPositionRelativeToElement(event.target, event.clientX, event.clientY);
     mouseHoverNodeIndex = getNodeIndexAtPosition(nodes, mousePosition);
-    const movement = new Vector2(event.movementX, event.movementY);
+    const movement = new Vector2(event.movementX, event.movementY).div(screenData.zoom);
     switch (state) {
         case State.None:
             if (event.buttons === 1 &&
@@ -669,7 +653,7 @@ function mousemove(event) {
             }
             break;
         case State.Pan:
-            screenData.offset = screenData.offset.add(movement);
+            screenData.offset = screenData.offset.add(movement.mul(screenData.zoom));
             saveLastState();
             break;
         case State.ScanSelect:
@@ -731,6 +715,9 @@ function mouseup(event) {
                 throw new Error("State machine bug.");
             let nodeRadius = mousePosition.sub(lastMouseDownPosition).magnitude;
             nodes.push(new GraphNode(lastMouseDownPosition, nodeRadiusCurve(nodeRadius), currentNodeColor, ""));
+            saveLastState();
+            break;
+        case State.MoveNode:
             saveLastState();
             break;
         case State.DrawEdge:

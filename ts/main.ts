@@ -238,6 +238,7 @@ const edgeThickness = 2;	// px
 
 const touchEnabled = Modernizr.touchevents;
 
+// zoom anim variables
 const zoomSpeed = 0.001;
 const minZoom = 0.2;
 const maxZoom = 3;
@@ -433,23 +434,7 @@ function importJson(json: string) {
 		console.error("Error importing JSON:", err);
 		alert("Invalid or corrupted graph JSON file.");
 	}
-	/*
-	let graph = Graph.deserializeJson(json);
-	resetAll();
-	nodes = graph.nodes;
-	edges = graph.edges;
-	screenData = graph.screenData;
 
-
-
-	let max = 1;
-	for (const node of nodes) {
-		let label = parseInt(node.label!);
-		if (!isNaN(label) && label > max)
-			max = label;
-	}
-	labelCounter = max + 1;
-	draw(window.performance.now());*/
 }
 //#endregion
 
@@ -735,7 +720,7 @@ function mousemove(event: MouseEvent) {
 	let mousePosition = getPositionRelativeToElement(event.target as Element, event.clientX, event.clientY);
 	mouseHoverNodeIndex = getNodeIndexAtPosition(nodes, mousePosition);
 
-	const movement = new Vector2(event.movementX, event.movementY);
+	const movement = new Vector2(event.movementX, event.movementY).div(screenData.zoom);
 
 	switch (state) {
 		case State.None:
@@ -747,7 +732,7 @@ function mousemove(event: MouseEvent) {
 			break;
 
 		case State.Pan:
-			screenData.offset = screenData.offset.add(movement);
+			screenData.offset = screenData.offset.add(movement.mul(screenData.zoom));
 			saveLastState();
 			break;
 
@@ -829,6 +814,10 @@ function mouseup(event: MouseEvent) {
 			);
 			saveLastState();
 			break;
+
+		case State.MoveNode:
+			saveLastState();
+			break
 
 		case State.DrawEdge:
 			if (lastMouseDownNodeIndex !== -1 && mouseUpNodeIndex !== -1) {
