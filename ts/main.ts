@@ -68,6 +68,14 @@ class Vector2 {
 		result.y = dx * Math.sin(theta) + dy * Math.cos(theta) + pivot.y;
 		return result;
 	}
+
+	static fromJSON(data: any): Vector2 {
+		return new Vector2(data.x, data.y);
+	}
+
+	public toJSON() {
+		return { x: this.x, y: this.y };
+	}
 }
 
 class GraphNode {
@@ -89,7 +97,9 @@ class GraphEdge {
 class Graph {
 	constructor(
 		public nodes: GraphNode[] = [],
-		public edges: GraphEdge[] = []) { }
+		public edges: GraphEdge[] = [],
+		public screenData: ScreenData = new ScreenData(new Vector2(), 1)
+	) { }
 
 	public serializeJson(): string {
 		return JSON.stringify(this, null, '\t');
@@ -100,6 +110,7 @@ class Graph {
 		for (const node of graph.nodes) {
 			node.position = new Vector2(node.position.x, node.position.y);
 		}
+		graph.screenData.offset = new Vector2(graph.screenData.offset.x, graph.screenData.offset.y);
 		return graph;
 	}
 }
@@ -129,6 +140,14 @@ class ScreenData{
 		public offset: Vector2,
 		public zoom: number
 	){}
+
+	static fromJSON(data: any): ScreenData {
+		return new ScreenData(Vector2.fromJSON(data.offset), data.zoom ?? 1);
+	}
+
+	public toJSON() {
+		return {offset: this.offset.toJSON(), zoom: this.zoom};
+	}
 }
 
 function clearCanvas(canvas: HTMLCanvasElement, ctx: CanvasRenderingContext2D, color: string) {
@@ -363,7 +382,7 @@ function handleImportedFile(file : File) {
 }
 
 function exportJson() {
-	return new Graph(nodes, edges).serializeJson();
+	return new Graph(nodes, edges, screenData).serializeJson();
 }
 
 function downloadExport(){
@@ -381,10 +400,41 @@ function downloadExport(){
 }
 
 function importJson(json: string) {
+	try {
+		const graph = Graph.deserializeJson(json);
+		resetAll();
+
+		nodes = graph.nodes;
+		edges = graph.edges;
+		if (graph.screenData) {
+			screenData.offset = new Vector2(graph.screenData.offset.x, graph.screenData.offset.y);
+			screenData.zoom = graph.screenData.zoom;
+		} else {
+			screenData = new ScreenData(new Vector2(), 1);
+		}
+
+		let max = 1;
+		for (const node of nodes) {
+			const label = parseInt(node.label!);
+			if (!isNaN(label) && label > max)
+				max = label;
+		}
+		labelCounter = max + 1;
+		draw(window.performance.now());
+	}
+	catch (err) {
+		console.error("Error importing JSON:", err);
+		alert("Invalid or corrupted graph JSON file.");
+	}
+	/*
 	let graph = Graph.deserializeJson(json);
 	resetAll();
 	nodes = graph.nodes;
 	edges = graph.edges;
+	screenData = graph.screenData;
+
+
+
 	let max = 1;
 	for (const node of nodes) {
 		let label = parseInt(node.label!);
@@ -392,7 +442,7 @@ function importJson(json: string) {
 			max = label;
 	}
 	labelCounter = max + 1;
-	draw(window.performance.now());
+	draw(window.performance.now());*/
 }
 //#endregion
 
@@ -425,7 +475,6 @@ function saveState(key: string, state: string){
 let state = State.None;
 
 // Camera transform
-//let offset = new Vector2;
 let screenData = new ScreenData(new Vector2(), 1);
 
 let selectedNodeIndices: number[] = [];
@@ -491,18 +540,10 @@ function getNodeIndicesInRect(box: DOMRectReadOnly): number[] {
 	}
 	return nodeIndices;
 }
-/*
-function getPositionRelativeToElement(element: Element | null, x: number, y: number): Vector2 {
-	if (element === null)
-		return new Vector2(x, y);
-	let rect = element.getBoundingClientRect();
-	return new Vector2((x - rect.left - screenData.offset.x) | 0, (y - rect.top - screenData.offset.y) | 0);
-}*/
 
 function getPositionRelativeToElement(element: Element | null, x: number, y: number): Vector2 {
 	if (element === null) return new Vector2(x, y);
 	const rect = element.getBoundingClientRect();
-	// offset’i çıkar, ZOOM’A BÖL → dünya koordinatı
 	return new Vector2(
 		((x - rect.left - screenData.offset.x) / screenData.zoom) | 0,
 		((y - rect.top  - screenData.offset.y) / screenData.zoom) | 0
@@ -700,6 +741,7 @@ function mousemove(event: MouseEvent) {
 
 		case State.Pan:
 			screenData.offset = screenData.offset.add(movement);
+			saveLastState();
 			break;
 
 		case State.ScanSelect:
@@ -861,11 +903,13 @@ function wheel(event: WheelEvent) {
     screenData.offset = pivotScreen.sub(pivotWorld.mul(z));
 
     draw(performance.now());
-    if (t < 1) animId = requestAnimationFrame(step);
-    else       animId = null;
+    if (t < 1)
+		animId = requestAnimationFrame(step);
+    else
+		animId = null;
   };
-
   animId = requestAnimationFrame(step);
+  saveLastState();
 }
 
 const touchDoubleTapTimeout = 300; // ms

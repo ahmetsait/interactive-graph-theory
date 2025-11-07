@@ -60,6 +60,12 @@ class Vector2 {
         result.y = dx * Math.sin(theta) + dy * Math.cos(theta) + pivot.y;
         return result;
     }
+    static fromJSON(data) {
+        return new Vector2(data.x, data.y);
+    }
+    toJSON() {
+        return { x: this.x, y: this.y };
+    }
 }
 class GraphNode {
     constructor(position, radius, color, label) {
@@ -78,9 +84,10 @@ class GraphEdge {
     }
 }
 class Graph {
-    constructor(nodes = [], edges = []) {
+    constructor(nodes = [], edges = [], screenData = new ScreenData(new Vector2(), 1)) {
         this.nodes = nodes;
         this.edges = edges;
+        this.screenData = screenData;
     }
     serializeJson() {
         return JSON.stringify(this, null, '\t');
@@ -90,6 +97,7 @@ class Graph {
         for (const node of graph.nodes) {
             node.position = new Vector2(node.position.x, node.position.y);
         }
+        graph.screenData.offset = new Vector2(graph.screenData.offset.x, graph.screenData.offset.y);
         return graph;
     }
 }
@@ -119,6 +127,13 @@ class ScreenData {
     constructor(offset, zoom) {
         this.offset = offset;
         this.zoom = zoom;
+    }
+    static fromJSON(data) {
+        var _a;
+        return new ScreenData(Vector2.fromJSON(data.offset), (_a = data.zoom) !== null && _a !== void 0 ? _a : 1);
+    }
+    toJSON() {
+        return { offset: this.offset.toJSON(), zoom: this.zoom };
     }
 }
 function clearCanvas(canvas, ctx, color) {
@@ -327,7 +342,7 @@ function handleImportedFile(file) {
     reader.readAsText(file);
 }
 function exportJson() {
-    return new Graph(nodes, edges).serializeJson();
+    return new Graph(nodes, edges, screenData).serializeJson();
 }
 function downloadExport() {
     const textarea = document.getElementById("export");
@@ -342,18 +357,48 @@ function downloadExport() {
     link.remove();
 }
 function importJson(json) {
+    try {
+        const graph = Graph.deserializeJson(json);
+        resetAll();
+        nodes = graph.nodes;
+        edges = graph.edges;
+        if (graph.screenData) {
+            screenData.offset = new Vector2(graph.screenData.offset.x, graph.screenData.offset.y);
+            screenData.zoom = graph.screenData.zoom;
+        }
+        else {
+            screenData = new ScreenData(new Vector2(), 1);
+        }
+        let max = 1;
+        for (const node of nodes) {
+            const label = parseInt(node.label);
+            if (!isNaN(label) && label > max)
+                max = label;
+        }
+        labelCounter = max + 1;
+        draw(window.performance.now());
+    }
+    catch (err) {
+        console.error("Error importing JSON:", err);
+        alert("Invalid or corrupted graph JSON file.");
+    }
+    /*
     let graph = Graph.deserializeJson(json);
     resetAll();
     nodes = graph.nodes;
     edges = graph.edges;
+    screenData = graph.screenData;
+
+
+
     let max = 1;
     for (const node of nodes) {
-        let label = parseInt(node.label);
+        let label = parseInt(node.label!);
         if (!isNaN(label) && label > max)
             max = label;
     }
     labelCounter = max + 1;
-    draw(window.performance.now());
+    draw(window.performance.now());*/
 }
 //#endregion
 //#region LocalStorage
@@ -382,7 +427,6 @@ function saveState(key, state) {
 //#endregion
 let state = State.None;
 // Camera transform
-//let offset = new Vector2;
 let screenData = new ScreenData(new Vector2(), 1);
 let selectedNodeIndices = [];
 let mouseHoverNodeIndex = -1;
@@ -442,18 +486,10 @@ function getNodeIndicesInRect(box) {
     }
     return nodeIndices;
 }
-/*
-function getPositionRelativeToElement(element: Element | null, x: number, y: number): Vector2 {
-    if (element === null)
-        return new Vector2(x, y);
-    let rect = element.getBoundingClientRect();
-    return new Vector2((x - rect.left - screenData.offset.x) | 0, (y - rect.top - screenData.offset.y) | 0);
-}*/
 function getPositionRelativeToElement(element, x, y) {
     if (element === null)
         return new Vector2(x, y);
     const rect = element.getBoundingClientRect();
-    // offset’i çıkar, ZOOM’A BÖL → dünya koordinatı
     return new Vector2(((x - rect.left - screenData.offset.x) / screenData.zoom) | 0, ((y - rect.top - screenData.offset.y) / screenData.zoom) | 0);
 }
 function nodeRadiusCurve(radius) {
@@ -629,6 +665,7 @@ function mousemove(event) {
             break;
         case State.Pan:
             screenData.offset = screenData.offset.add(movement);
+            saveLastState();
             break;
         case State.ScanSelect:
             if (mouseHoverNodeIndex !== -1)
@@ -760,6 +797,7 @@ function wheel(event) {
             animId = null;
     };
     animId = requestAnimationFrame(step);
+    saveLastState();
 }
 const touchDoubleTapTimeout = 300; // ms
 const touchHoldTimeout = 300; // ms
