@@ -390,8 +390,15 @@ function downloadExport(){
 	const blob = new Blob([textarea.value], {type: "text/json"});
 	const dataUrl = window.URL.createObjectURL(blob);
 
-	const fileName = 'graph.json';
-    const link = document.createElement('a');
+	const now = new Date();
+		const timestamp = now.toISOString()
+			.replace("T", "_")
+			.replace(/:/g, "-")
+			.split(".")[0];
+
+		const fileName = `graph_${timestamp}.json`;
+    
+	const link = document.createElement('a');
     link.href = dataUrl;
     link.download = fileName;
 	link.click();
