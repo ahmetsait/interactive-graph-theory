@@ -123,6 +123,7 @@ enum State {
 	MoveNode,
 	DeleteNode,
 	DrawEdge,
+	SplitEdge,
 	DeleteEdge,
 	BoxSelect,
 	ScanSelect,
@@ -151,6 +152,38 @@ class ScreenData{
 		return {offset: this.offset.toJSON(), zoom: this.zoom};
 	}
 }
+
+class Line {
+	constructor(
+		public p1: Vector2,
+		public p2: Vector2) { }
+
+	public intersects(line: Line): boolean {
+		const line1 = this, line2 = line;
+		let det, gamma, lambda;
+		det = (line1.p2.x - line1.p1.x) * (line2.p2.y - line2.p1.y) - (line2.p2.x - line2.p1.x) * (line1.p2.y - line1.p1.y);
+		if (det === 0) {
+			return false;
+		}
+		else {
+			lambda = ((line2.p2.y - line2.p1.y) * (line2.p2.x - line1.p1.x) + (line2.p1.x - line2.p2.x) * (line2.p2.y - line1.p1.y)) / det;
+			gamma = ((line1.p1.y - line1.p2.y) * (line2.p2.x - line1.p1.x) + (line1.p2.x - line1.p1.x) * (line2.p2.y - line1.p1.y)) / det;
+			return (0 < lambda && lambda < 1) && (0 < gamma && gamma < 1);
+		}
+	}
+
+	public getPointDistance(point: Vector2) : number{
+		const a = this.p1;
+		const b = this.p2;
+		const ab = b.sub(a);
+		const ap = point.sub(a);
+
+		const t = Math.max(0, Math.min(1, ap.dot(ab) / ab.dot(ab)));
+		const closest = a.add(ab.mul(t));
+		return point.sub(closest).magnitude;
+	}
+}
+
 
 function clearCanvas(canvas: HTMLCanvasElement, ctx: CanvasRenderingContext2D, color: string) {
 	ctx.save();
@@ -237,6 +270,7 @@ function randomHslColor(lightness: number = 0.50) {
 
 const defaultNodeRadius = 12.5;	// px
 const edgeThickness = 2;	// px
+let edgeAnimOffset = 0;
 
 const touchEnabled = Modernizr.touchevents;
 
@@ -257,11 +291,11 @@ const ZOOM_ANIM_MS = 150;
 
 // force-directed variables
 let physicsRunning = false;
-const repulsion = 10000;
+const repulsion = 5000;
 const spring = 0.01;
-const damping = 5;
+const damping = 2;
 const maxSpeed = 10;
-const idealDist = 80;
+const idealDist = 200;
 
 const canvas = document.getElementById("canvas") as HTMLCanvasElement;
 const ctx = canvas.getContext("2d", { alpha: false })!;
@@ -480,30 +514,12 @@ let state = State.None;
 let screenData = new ScreenData(new Vector2(), 1);
 
 let selectedNodeIndices: number[] = [];
+let selectedEdgeIndices: number[] = [];
 let mouseHoverNodeIndex: number = -1;
+let mouseHoverEdgeIndex: number = -1;
 
 let currentNodeColor: string;
 let labelCounter = 1;
-
-class Line {
-	constructor(
-		public p1: Vector2,
-		public p2: Vector2) { }
-
-	public intersects(line: Line): boolean {
-		const line1 = this, line2 = line;
-		let det, gamma, lambda;
-		det = (line1.p2.x - line1.p1.x) * (line2.p2.y - line2.p1.y) - (line2.p2.x - line2.p1.x) * (line1.p2.y - line1.p1.y);
-		if (det === 0) {
-			return false;
-		}
-		else {
-			lambda = ((line2.p2.y - line2.p1.y) * (line2.p2.x - line1.p1.x) + (line2.p1.x - line2.p2.x) * (line2.p2.y - line1.p1.y)) / det;
-			gamma = ((line1.p1.y - line1.p2.y) * (line2.p2.x - line1.p1.x) + (line1.p2.x - line1.p1.x) * (line2.p2.y - line1.p1.y)) / det;
-			return (0 < lambda && lambda < 1) && (0 < gamma && gamma < 1);
-		}
-	}
-}
 
 function getNodeIndexAtPosition(nodes: GraphNode[], position: Vector2): number {
 	let closestNodeIndex = -1;
@@ -527,6 +543,31 @@ function getNodeIndexAtPosition(nodes: GraphNode[], position: Vector2): number {
 		}
 	}
 	return closestNodeIndex;
+}
+
+function getEdgeIndexAtPosition(edges: GraphEdge[], position: Vector2) : number
+{
+	let closestEdgeIndex = -1;
+	let resultEdge : GraphEdge = new GraphEdge(-1, -1 , EdgeType.Bidirectional, 1);
+
+	for (let edgeIndex = 0; edgeIndex < edges.length; edgeIndex++) {
+		let edge = edges[edgeIndex]!;
+		let node1 = nodes[edge.nodeIndex1]!;
+		let node2 = nodes[edge.nodeIndex2]!;
+		
+		let distance = (new Line(node1.position, node2?.position)).getPointDistance(position);
+		if (distance < 8) {
+			if (closestEdgeIndex === -1) {
+				closestEdgeIndex = edgeIndex;
+				resultEdge = edge;
+			}
+			else if (distance < (new Line(nodes[resultEdge.nodeIndex1]!.position, nodes[resultEdge.nodeIndex2]!.position)).getPointDistance(position)) {
+				closestEdgeIndex = edgeIndex;
+				resultEdge = edge;
+			}
+		}
+	}
+	return closestEdgeIndex;
 }
 
 function getNodeIndicesInRect(box: DOMRectReadOnly): number[] {
@@ -579,9 +620,11 @@ document.addEventListener("click", (event) => {
 
 function resetAll() {
 	selectedNodeIndices = [];
+	selectedEdgeIndices = [];
 	edges = [];
 	nodes = [];
 	labelCounter = 1;
+	saveLastState();
 	draw(window.performance.now());
 }
 
@@ -651,10 +694,14 @@ let lastMousePosition: Vector2 | null = null;
 let lastMouseDownPosition: Vector2 | null = null;
 let lastMouseDownTimestamp: number = -1;
 let lastMouseDownNodeIndex: number = -1;
+let lastMouseDownEdgeIndex: number = -1;
 
 function mousedown(event: MouseEvent) {
 	let mousePosition = getPositionRelativeToElement(event.target as Element, event.clientX, event.clientY);
 	let mouseDownNodeIndex = getNodeIndexAtPosition(nodes, mousePosition);
+	let mouseDownEdgeIndex = -1;
+	if (mouseDownNodeIndex === -1)
+		mouseDownEdgeIndex = getEdgeIndexAtPosition(edges, mousePosition)
 
 	switch (state) {
 		case State.None:
@@ -667,7 +714,15 @@ function mousedown(event: MouseEvent) {
 					}
 				}
 				else if (event.shiftKey) {
-					if (mouseDownNodeIndex === -1) {
+					if (mouseDownEdgeIndex > -1){
+						if (selectedEdgeIndices.indexOf(mouseDownEdgeIndex) >= 0)
+							removeItem(selectedEdgeIndices, mouseDownEdgeIndex);
+						else{
+							selectedNodeIndices = [];
+							addItemUnique(selectedEdgeIndices, mouseDownEdgeIndex);
+						}
+					}
+					else if (mouseDownNodeIndex === -1) {
 						state = State.BoxSelect;
 					}
 					else {
@@ -695,7 +750,7 @@ function mousedown(event: MouseEvent) {
 					state = State.Pan;
 				}
 				else {
-					if (mouseDownNodeIndex === -1) {
+					if (mouseDownNodeIndex === -1 && mouseDownEdgeIndex === -1) {
 						currentNodeColor = randomHslColor();
 						state = State.DrawNode;
 					}
@@ -721,6 +776,7 @@ function mousedown(event: MouseEvent) {
 
 	lastMouseDownPosition = lastMousePosition = mousePosition;
 	lastMouseDownNodeIndex = mouseDownNodeIndex;
+	lastMouseDownEdgeIndex = mouseDownEdgeIndex;
 	lastMouseDownTimestamp = event.timeStamp;
 
 	draw(window.performance.now());
@@ -729,15 +785,21 @@ function mousedown(event: MouseEvent) {
 function mousemove(event: MouseEvent) {
 	let mousePosition = getPositionRelativeToElement(event.target as Element, event.clientX, event.clientY);
 	mouseHoverNodeIndex = getNodeIndexAtPosition(nodes, mousePosition);
+	mouseHoverEdgeIndex = getEdgeIndexAtPosition(edges, mousePosition);
 
 	const movement = new Vector2(event.movementX, event.movementY).div(screenData.zoom);
 
 	switch (state) {
 		case State.None:
-			if (event.buttons === 1 &&
-				lastMouseDownNodeIndex !== -1 &&
-				nodes[lastMouseDownNodeIndex]!.position.sub(mousePosition).magnitudeSqr > nodes[lastMouseDownNodeIndex]!.radius ** 2) {
-				state = State.DrawEdge;
+			if (event.buttons === 1){
+				if (lastMouseDownEdgeIndex > -1 && mouseHoverEdgeIndex !== lastMouseDownEdgeIndex){
+					currentNodeColor = randomHslColor();
+					state = State.SplitEdge;
+				}
+				else if (lastMouseDownNodeIndex !== -1 &&
+					nodes[lastMouseDownNodeIndex]!.position.sub(mousePosition).magnitudeSqr > nodes[lastMouseDownNodeIndex]!.radius ** 2) {
+					state = State.DrawEdge;
+				}
 			}
 			break;
 
@@ -788,12 +850,25 @@ function mousemove(event: MouseEvent) {
 function mouseup(event: MouseEvent) {
 	let mousePosition = getPositionRelativeToElement(event.target as Element, event.clientX, event.clientY);
 	let mouseUpNodeIndex = getNodeIndexAtPosition(nodes, mousePosition);
+	let mouseUpEdgeIndex = getEdgeIndexAtPosition(edges, mousePosition);
 
 	switch (state) {
 		case State.None:
-			if (lastMouseDownNodeIndex !== -1 && lastMouseDownNodeIndex === mouseUpNodeIndex) {
+			if (selectedNodeIndices.indexOf(lastMouseDownNodeIndex) > -1){
+				removeItem(selectedNodeIndices, lastMouseDownNodeIndex);
+			}
+			else if (lastMouseDownNodeIndex !== -1 && lastMouseDownEdgeIndex === -1  && lastMouseDownNodeIndex === mouseUpNodeIndex) {
 				selectedNodeIndices = [];
+				selectedEdgeIndices = [];
 				addItemUnique(selectedNodeIndices, mouseUpNodeIndex);
+			}else if (lastMouseDownEdgeIndex > -1 && lastMouseDownEdgeIndex === mouseUpEdgeIndex && !event.shiftKey){
+				if (selectedEdgeIndices.indexOf(lastMouseDownEdgeIndex) >= 0)
+					removeItem(selectedEdgeIndices, lastMouseDownEdgeIndex);
+				else{
+					selectedEdgeIndices = [];
+					selectedNodeIndices = [];
+					addItemUnique(selectedEdgeIndices, lastMouseDownEdgeIndex);
+				}
 			}
 			break;
 
@@ -824,7 +899,25 @@ function mouseup(event: MouseEvent) {
 			);
 			saveLastState();
 			break;
+		case State.SplitEdge:
+			if (lastMouseDownPosition === null)
+				throw new Error("State machine bug.");
+			const newNode = new GraphNode(
+					mousePosition,
+					defaultNodeRadius,
+					currentNodeColor,
+					"",
+				);
 
+			const newNodeIndex = nodes.push(newNode) - 1;
+			const splittedEdge = edges[lastMouseDownEdgeIndex];
+			edges.push(new GraphEdge(splittedEdge!.nodeIndex1, newNodeIndex, EdgeType.Directional, splittedEdge!.weight));
+			edges.push(new GraphEdge(splittedEdge!.nodeIndex2, newNodeIndex, EdgeType.Directional, splittedEdge!.weight));
+			removeItem(edges, splittedEdge);
+
+			// Edge leri pushla
+			saveLastState();
+			break;
 		case State.MoveNode:
 			saveLastState();
 			break
@@ -1260,6 +1353,7 @@ function draw(timeStamp: number) {
 	}
 
 	ctx.save();
+	console.log(state.toString());
 
 	try {
 		ctx.setTransform(1, 0, 0, 1, 0, 0);
@@ -1274,22 +1368,33 @@ function draw(timeStamp: number) {
 			screenData.offset.y * window.devicePixelRatio // translateY
 		);
 
-
-		//ctx.scale(window.devicePixelRatio , window.devicePixelRatio);
-		//ctx.translate(screenData.offset.x, screenData.offset.y);
 		clearCanvas(canvas, ctx, "white");
 
 		ctx.strokeStyle = "gray";
 		ctx.lineWidth = edgeThickness;
 
-		if (state === State.DrawEdge && lastMouseDownNodeIndex !== -1 && lastMousePosition !== null) {
-			ctx.beginPath();
-			ctx.moveTo(nodes[lastMouseDownNodeIndex]!.position.x, nodes[lastMouseDownNodeIndex]!.position.y);
-			ctx.lineTo(lastMousePosition.x, lastMousePosition.y);
-			ctx.stroke();
+		if (lastMousePosition !== null){
+			if (state === State.DrawEdge && lastMouseDownNodeIndex !== -1) {
+				ctx.beginPath();
+				ctx.moveTo(nodes[lastMouseDownNodeIndex]!.position.x, nodes[lastMouseDownNodeIndex]!.position.y);
+				ctx.lineTo(lastMousePosition.x, lastMousePosition.y);
+				ctx.stroke();
+			}
+			else if (state === State.SplitEdge){
+				const splittedEdge = edges[lastMouseDownEdgeIndex];
+				const node1 = nodes[splittedEdge?.nodeIndex1!];
+				const node2 = nodes[splittedEdge?.nodeIndex2!];
+				ctx.beginPath();
+				ctx.moveTo(node1?.position.x!, node1?.position.y!);
+				ctx.lineTo(lastMousePosition.x!, lastMousePosition.y!);
+				ctx.lineTo(node2?.position.x!, node2?.position.y!);
+				ctx.stroke();
+			}
 		}
 
 		for (let i = 0; i < edges.length; i++) {
+			if (state === State.SplitEdge && i === lastMouseDownEdgeIndex)
+				continue;
 			let edge = edges[i]!;
 			const node1 = nodes[edge.nodeIndex1];
 			const node2 = nodes[edge.nodeIndex2];
@@ -1303,7 +1408,7 @@ function draw(timeStamp: number) {
 				const firstPoint = arrowMidPoint.rotatedAround(30, intPoint);
 				const secondPoint = arrowMidPoint.rotatedAround(-30, intPoint);
 				
-				ctx.fillStyle = "gray";
+				ctx.fillStyle = selectedEdgeIndices.indexOf(i) >= 0 ? "blue" : "gray";
 				ctx.beginPath();
 				ctx.moveTo(intPoint.x, intPoint.y);
 				ctx.lineTo(firstPoint.x, firstPoint.y);
@@ -1311,7 +1416,7 @@ function draw(timeStamp: number) {
 				ctx.fill();
 			}
 
-			ctx.strokeStyle = "gray";
+			ctx.strokeStyle = selectedEdgeIndices.indexOf(i) >= 0 ? "blue" : "gray";
 			ctx.beginPath();
 			ctx.moveTo(node1.position.x, node1.position.y);
 			ctx.lineTo(node2.position.x, node2.position.y);
@@ -1363,6 +1468,15 @@ function draw(timeStamp: number) {
 			ctx.fillStyle = currentNodeColor;
 			ctx.beginPath();
 			ctx.arc(lastMouseDownPosition.x, lastMouseDownPosition.y, nodeRadiusCurve(nodeRadius), 0, 360);
+			ctx.fill();
+		}
+		else if (state === State.SplitEdge){
+			if (lastMousePosition === null || lastMouseDownPosition === null)
+				throw new Error("lastMousePosition or lastMouseDownPosition cannot be null.");
+
+			ctx.fillStyle = currentNodeColor;
+			ctx.beginPath();
+			ctx.arc(lastMousePosition.x, lastMousePosition.y, defaultNodeRadius, 0, 360);
 			ctx.fill();
 		}
 
