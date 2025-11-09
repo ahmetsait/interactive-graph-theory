@@ -262,13 +262,6 @@ let animTargetLogZ = 0;
 let pivotScreen = new Vector2();
 let pivotWorld = new Vector2();
 const ZOOM_ANIM_MS = 150;
-// force-directed variables
-let physicsRunning = false;
-const repulsion = 5000;
-const spring = 0.01;
-const damping = 2;
-const maxSpeed = 10;
-const idealDist = 200;
 const canvas = document.getElementById("canvas");
 const ctx = canvas.getContext("2d", { alpha: false });
 ctx.imageSmoothingEnabled = true;
@@ -609,6 +602,62 @@ function cutEdges(scissor) {
         }
     }
 }
+function tryVibrate(pattern) {
+    if ("vibrate" in navigator) {
+        navigator.vibrate(pattern);
+    }
+    else {
+        console.warn("Vibration API not supported on this device.");
+    }
+}
+//#region Physics Related
+let physicsRunning = false;
+const repulsion = 5000;
+const spring = 0.01;
+const damping = 2;
+const maxSpeed = 10;
+const idealDist = 200;
+function updatePhysics() {
+    if (!physicsRunning)
+        return;
+    for (const n of nodes) {
+        n.velocity = new Vector2(0, 0);
+    }
+    for (const a of nodes) {
+        let force = new Vector2();
+        for (const b of nodes) {
+            if (a === b)
+                continue;
+            const delta = a.position.sub(b.position);
+            let dist = delta.magnitude || 0.001;
+            const dir = delta.div(dist);
+            force = force.add(dir.mul(repulsion / (dist * dist)));
+        }
+        for (const e of edges) {
+            if (nodes[e.nodeIndex1] === a || nodes[e.nodeIndex2] === a) {
+                const other = nodes[e.nodeIndex1] === a ? nodes[e.nodeIndex2] : nodes[e.nodeIndex1];
+                const delta = other.position.sub(a.position);
+                let dist = delta.magnitude || 0.001;
+                const dir = delta.div(dist);
+                force = force.add(dir.mul((dist - idealDist) * spring));
+            }
+        }
+        a.velocity = (a.velocity || new Vector2()).add(force).mul(damping);
+        if (a.velocity.magnitude > maxSpeed)
+            a.velocity = a.velocity.normalized.mul(maxSpeed);
+        a.position = a.position.add(a.velocity);
+    }
+    draw(performance.now());
+    requestAnimationFrame(updatePhysics);
+}
+function togglePhysics() {
+    physicsRunning = !physicsRunning;
+    if (physicsRunning)
+        updatePhysics();
+}
+;
+//#endregion
+//#region Mouse Controls
 const mouseHoldDistanceThreshold = 1;
 let lastMousePosition = null;
 let lastMouseDownPosition = null;
@@ -880,6 +929,8 @@ function wheel(event) {
     animId = requestAnimationFrame(step);
     saveLastState();
 }
+//#endregion
+//#region Touch Controls
 const touchDoubleTapTimeout = 300; // ms
 const touchHoldTimeout = 300; // ms
 const touchDoubleTapDistanceThreshold = 20; // px I guess?
@@ -901,45 +952,6 @@ let lastSingleTouchStartPosition = null;
 let lastSingleTouchPosition = null;
 let lastSingleTouchStartTimestamp = -1;
 let touchHoldTimer = undefined;
-function updatePhysics() {
-    if (!physicsRunning)
-        return;
-    for (const n of nodes) {
-        n.velocity = new Vector2(0, 0);
-    }
-    for (const a of nodes) {
-        let force = new Vector2();
-        for (const b of nodes) {
-            if (a === b)
-                continue;
-            const delta = a.position.sub(b.position);
-            let dist = delta.magnitude || 0.001;
-            const dir = delta.div(dist);
-            force = force.add(dir.mul(repulsion / (dist * dist)));
-        }
-        for (const e of edges) {
-            if (nodes[e.nodeIndex1] === a || nodes[e.nodeIndex2] === a) {
-                const other = nodes[e.nodeIndex1] === a ? nodes[e.nodeIndex2] : nodes[e.nodeIndex1];
-                const delta = other.position.sub(a.position);
-                let dist = delta.magnitude || 0.001;
-                const dir = delta.div(dist);
-                force = force.add(dir.mul((dist - idealDist) * spring));
-            }
-        }
-        a.velocity = (a.velocity || new Vector2()).add(force).mul(damping);
-        if (a.velocity.magnitude > maxSpeed)
-            a.velocity = a.velocity.normalized.mul(maxSpeed);
-        a.position = a.position.add(a.velocity);
-    }
-    draw(performance.now());
-    requestAnimationFrame(updatePhysics);
-}
-function togglePhysics() {
-    physicsRunning = !physicsRunning;
-    if (physicsRunning)
-        updatePhysics();
-}
-;
 function touchstart(event) {
     event.preventDefault();
     for (let i = 0; i < event.changedTouches.length; i++) {
@@ -957,7 +969,7 @@ function touchstart(event) {
                     let doubleTapDistanceSqr = touchInfo.touchPosition.sub(lastSingleTouchStartPosition).magnitudeSqr;
                     if (event.timeStamp - lastSingleTouchStartTimestamp < touchDoubleTapTimeout && doubleTapDistanceSqr < Math.pow(touchDoubleTapDistanceThreshold, 2)) {
                         doubleTap = true;
-                        navigator.vibrate([30, 30, 30]);
+                        tryVibrate([30, 30, 30]);
                         if (touchInfo.touchStartNodeIndex !== -1) {
                             deleteNode(touchInfo.touchStartNodeIndex);
                             state = State.DeleteNode;
@@ -979,7 +991,7 @@ function touchstart(event) {
                             }
                             else
                                 state = State.DeleteEdge;
-                            navigator.vibrate(50);
+                            tryVibrate(50);
                         }
                     }, touchHoldTimeout);
                 }
@@ -1140,6 +1152,7 @@ function touchend(event) {
     }
     draw(window.performance.now());
 }
+//#endregion
 function load() {
     loadState("lastState");
     resize();
@@ -1169,7 +1182,6 @@ function draw(timeStamp) {
         lastMouseDownNodeIndex = lastSingleTouchStartNodeIndex;
     }
     ctx.save();
-    console.log(state.toString());
     try {
         ctx.setTransform(1, 0, 0, 1, 0, 0);
         ctx.clearRect(0, 0, canvas.width, canvas.height);
