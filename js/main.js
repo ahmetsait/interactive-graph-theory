@@ -633,7 +633,7 @@ function updatePhysics() {
     lastFrameTime = now;
     for (let i = 0; i < nodes.length; i++) {
         let force = new Vector2();
-        if (lastMouseDownNodeIndex === i && state == State.MoveNode)
+        if ((lastMouseDownNodeIndex === i || selectedNodeIndices.indexOf(i)) && state == State.MoveNode)
             continue;
         const a = nodes[i];
         for (let j = 0; j < nodes.length; j++) {
