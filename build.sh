@@ -1,6 +1,9 @@
 #!/usr/bin/env bash
 
+set -euo pipefail
+
 watch=0
+serve=0
 
 while [[ $# -gt 0 ]]; do
 	case "$1" in
@@ -8,13 +11,15 @@ while [[ $# -gt 0 ]]; do
 			watch=1
 			shift
 			;;
+		-s|--serve)
+			serve=1
+			shift
+			;;
 		*)
 			break
 			;;
 	esac
 done
-
-set -e
 
 if [[ -d bin ]]; then
 	export PATH="$(realpath bin):$PATH"
@@ -46,3 +51,9 @@ if [[ watch -ne 0 ]]; then
 	tsc --watch --preserveWatchOutput &
 fi
 echo "Done"
+
+if [[ serve -ne 0 ]]; then
+	python3 -m http.server "$@"
+elif [[ watch -ne 0 ]]; then
+	wait
+fi

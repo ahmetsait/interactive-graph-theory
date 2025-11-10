@@ -1,6 +1,3 @@
-#!/usr/bin/env bash
+#!/usr/bin/sh
 
-set -e
-
-./build.sh --watch
-python3 -m http.server "$@"
+./build.sh --watch --serve
