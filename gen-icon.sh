@@ -4,7 +4,7 @@ app_name="$(basename "${BASH_SOURCE[0]}")"
 
 USAGE=$(cat << EOF
 Usage:
-    $app_name
+    $app_name <SVG_FILE>
         Generate PNG images from SVG files.
 
 Options:
@@ -12,6 +12,9 @@ Options:
         Which sizes to render SVG files formatted as comma separated integer
         values. Original size from the SVG file is used when this option is
         missing or 0 is used.
+
+    -b, --background=<COLOR>
+        Background color to use while rendering SVG.
 
     -a, --apple=[SIZE,PADDING]
         Apple touch icon size to generate. "180,25" is used when no size or
@@ -29,13 +32,13 @@ if [[ $? -ne 4 ]]; then
 	exit 1
 fi
 
-opts=$(getopt -o 'hs:a::' -l 'help,sizes:,apple::' -n "$app_name" -- "$@") || exit $?
+args=()
+opts=$(getopt -o 'hs:b:a::' -l 'help,sizes:,background:,apple::' -n "$app_name" -- "$@") || exit $?
 
 eval "opts=($opts)"
 
-args=()
-apple=0
 sizes=0
+apple=0
 
 for ((i = 0; i < ${#opts[@]}; i++)); do
 	opt="${opts["$i"]}"
@@ -44,6 +47,10 @@ for ((i = 0; i < ${#opts[@]}; i++)); do
 			((i++))
 			readarray -t -d, png_sizes < <(printf "%s" "${opts["$i"]}")
 			sizes=1
+			;;
+		-b|--background)
+			((i++))
+			background="${opts["$i"]}"
 			;;
 		-a|--apple)
 			((i++))
@@ -55,7 +62,7 @@ for ((i = 0; i < ${#opts[@]}; i++)); do
 			exit 0
 			;;
 		--)
-			args+=("${opts[@]:((i+1))}")
+			args+=("${opts[@]:i+1}")
 			break
 			;;
 	esac
@@ -76,21 +83,21 @@ if [[ resvg -ne 0 ]]; then
 	exit 1
 fi
 
-command -v convert > /dev/null; magick=$?
+command -v magick > /dev/null; magick=$?
 
 if [[ magick -ne 0 ]]; then
-	echo "Cannot find 'convert' command. Make sure ImageMagick is installed and reachable from the current working directory. See: https://www.imagemagick.org" >&2
+	echo "Cannot find 'magick' command. Make sure ImageMagick is installed and reachable from the current working directory. See: https://www.imagemagick.org" >&2
 	exit 1
 fi
 
 status=0
 
 export_png() {
-	if [[ $2 -nt $3 ]]; then
+	if [[ $2 -nt $3 || ${BASH_SOURCE[0]} -nt $3 ]]; then
 		if (( $1 == 0 )); then
-			resvg "$2" "$3"
+			resvg ${background:+--background "$background"} "$2" "$3"
 		else
-			resvg -w "$1" -h "$1" "$2" "$3"
+			resvg ${background:+--background "$background"} -w "$1" -h "$1" "$2" "$3"
 		fi
 	fi
 }
@@ -136,12 +143,12 @@ for f in "$@"; do
 	
 	if (( ${#pngs[@]} > 0 )); then
 		ico="$name.g.ico"
-		convert -background none "${pngs[@]}" "$ico"
+		magick -background none "${pngs[@]}" "$ico"
 	fi
 	
 	if (( apple != 0 )); then
 		if wait -n "$apple_job"; then
-			convert "$apple_icon" -define png:exclude-chunks=date,time -background white -gravity center -extent "${apple_touch_icon_size}x${apple_touch_icon_size}" "$apple_icon"
+			magick "$apple_icon" -define png:exclude-chunks=date,time -background white -gravity center -extent "${apple_touch_icon_size}x${apple_touch_icon_size}" "$apple_icon"
 		else
 			status=1
 		fi

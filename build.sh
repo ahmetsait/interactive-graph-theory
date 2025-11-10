@@ -21,7 +21,7 @@ if [[ -d bin ]]; then
 fi
 
 echo "Generating images..."
-./gen-icon.sh assets/opengraph.svg assets/twitter.svg &
+./gen-icon.sh --background white assets/opengraph.svg assets/twitter.svg &
 asset_job=$!
 ./gen-icon.sh favicon/favicon.svg --sizes=512,256,255,192,180,150,128,96,72,64,48,32,24,20,16 --apple &
 favicon_job=$!
