@@ -991,8 +991,9 @@ function mouseup(event: MouseEvent) {
 
 			const newNodeIndex = nodes.push(newNode) - 1;
 			const splittedEdge = edges[lastMouseDownEdgeIndex];
-			edges.push(new GraphEdge(splittedEdge!.nodeIndex1, newNodeIndex, EdgeType.Directional, splittedEdge!.weight));
-			edges.push(new GraphEdge(splittedEdge!.nodeIndex2, newNodeIndex, EdgeType.Directional, splittedEdge!.weight));
+			edges.push(new GraphEdge(splittedEdge!.nodeIndex1, newNodeIndex, splittedEdge!.edgeType, splittedEdge!.weight));
+			edges.push(new GraphEdge(newNodeIndex, splittedEdge!.nodeIndex2, splittedEdge!.edgeType, splittedEdge!.weight));
+
 			removeItem(edges, splittedEdge);
 
 			// Edge leri pushla
