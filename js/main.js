@@ -244,6 +244,11 @@ function hslToRgbHex(h, s, l) {
 function randomHslColor(lightness = 0.50) {
     return hslToRgbHex(Math.random(), Math.random() * 0.50 + 0.25, lightness);
 }
+function clamp(value, min, max) {
+    if (min > max)
+        [min, max] = [max, min];
+    return Math.min(Math.max(value, min), max);
+}
 const defaultNodeRadius = 12.5; // px
 const edgeThickness = 2; // px
 let edgeAnimOffset = 0;
@@ -612,26 +617,33 @@ function tryVibrate(pattern) {
 }
 //#region Physics Related
 let physicsRunning = false;
-const repulsion = 5000;
+const repulsion = 1000;
 const spring = 0.01;
-const damping = 2;
+const damping = 0.04;
+const drag = 0.05;
 const maxSpeed = 10;
 const idealDist = 200;
+const maxForceApplyDistance = 1000;
+let lastFrameTime = performance.now();
 function updatePhysics() {
     if (!physicsRunning)
         return;
-    for (const n of nodes) {
-        n.velocity = new Vector2(0, 0);
-    }
-    for (const a of nodes) {
+    const now = performance.now();
+    const deltaTime = now - lastFrameTime;
+    lastFrameTime = now;
+    for (let i = 0; i < nodes.length; i++) {
         let force = new Vector2();
-        for (const b of nodes) {
-            if (a === b)
+        if (lastMouseDownNodeIndex === i && state == State.MoveNode)
+            continue;
+        const a = nodes[i];
+        for (let j = 0; j < nodes.length; j++) {
+            if (a === nodes[j])
                 continue;
-            const delta = a.position.sub(b.position);
+            const delta = a.position.sub(nodes[j].position);
             let dist = delta.magnitude || 0.001;
             const dir = delta.div(dist);
-            force = force.add(dir.mul(repulsion / (dist * dist)));
+            const falloff = 1 - Math.pow((clamp(dist, 50, maxForceApplyDistance) / maxForceApplyDistance), 2);
+            force = force.add(dir.mul(repulsion * falloff / (dist * dist)));
         }
         for (const e of edges) {
             if (nodes[e.nodeIndex1] === a || nodes[e.nodeIndex2] === a) {
@@ -639,21 +651,28 @@ function updatePhysics() {
                 const delta = other.position.sub(a.position);
                 let dist = delta.magnitude || 0.001;
                 const dir = delta.div(dist);
-                force = force.add(dir.mul((dist - idealDist) * spring));
+                const springForce = (dist - idealDist) * spring;
+                const relVel = other.velocity.sub(a.velocity);
+                const dampingForce = relVel.dot(dir) * damping;
+                force = force.add(dir.mul(springForce + dampingForce));
             }
         }
-        a.velocity = (a.velocity || new Vector2()).add(force).mul(damping);
+        a.velocity = a.velocity.add(force);
+        a.velocity = a.velocity.mul(1 - drag);
         if (a.velocity.magnitude > maxSpeed)
             a.velocity = a.velocity.normalized.mul(maxSpeed);
-        a.position = a.position.add(a.velocity);
     }
+    for (const node of nodes)
+        node.position = node.position.add(node.velocity);
     draw(performance.now());
     requestAnimationFrame(updatePhysics);
 }
 function togglePhysics() {
     physicsRunning = !physicsRunning;
-    if (physicsRunning)
+    if (physicsRunning) {
+        nodes.forEach(n => n.velocity = new Vector2(Math.random() - 0.5, Math.random() - 0.5));
         updatePhysics();
+    }
 }
 ;
 //#endregion
