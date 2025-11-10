@@ -1,22 +1,27 @@
 {
 	"compilerOptions": {
-		"outDir": "js",
 		"allowJs": true,
 		"allowUnreachableCode": false,
-		"target": "es6",
-		"sourceMap": true,
 		"alwaysStrict": true,
-		"noImplicitAny": true,
-		"noImplicitReturns": true,
+		"checkJs": false,
+		"composite": true,
+		"incremental": true,
+		"noEmitOnError": true,
 		"noFallthroughCasesInSwitch": true,
-		"strictNullChecks": true,
-		"noImplicitThis": true,
+		"noImplicitAny": true,
 		"noImplicitOverride": true,
+		"noImplicitReturns": true,
+		"noImplicitThis": true,
 		"noPropertyAccessFromIndexSignature": true,
 		"noUncheckedIndexedAccess": true,
-		"strict": true
+		"outDir": "js",
+		"rootDir": "ts",
+		"sourceMap": true,
+		"strict": true,
+		"strictNullChecks": true,
+		"target": "es6",
 	},
 	"include": [
-		"ts/**/*"
+		"ts/**/*",
 	]
 }
