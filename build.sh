@@ -29,6 +29,13 @@ wait -n "$asset_job"
 wait -n "$favicon_job"
 echo "Done"
 
+echo "Compiling Sass..."
+sass --update scss:css
+if [[ watch -ne 0 ]]; then
+	sass --update --watch scss:css &
+fi
+echo "Done"
+
 if [[ -d node_modules/.bin ]]; then
 	export PATH="$(realpath node_modules/.bin):$PATH"
 fi
