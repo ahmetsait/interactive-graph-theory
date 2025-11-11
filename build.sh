@@ -54,6 +54,6 @@ echo "Done"
 
 if [[ serve -ne 0 ]]; then
 	python3 -m http.server "$@"
-elif [[ watch -ne 0 ]]; then
-	wait
 fi
+
+wait
