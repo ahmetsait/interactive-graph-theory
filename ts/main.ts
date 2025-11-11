@@ -1220,16 +1220,13 @@ function touchmove(event: TouchEvent) {
 		if (touchInfo === undefined)
 			continue;
 
-		const deltaVector = new Vector2(
+		touchInfo.touchDelta = new Vector2(
 			touch.clientX - touchInfo.touchClientPosition.x,
 			touch.clientY - touchInfo.touchClientPosition.y
 		); 
-		if (deltaVector.magnitudeSqr >= moveThreshold ** 2){
+		if (touchInfo.touchDelta.magnitudeSqr >= moveThreshold ** 2){
 			anyTouchMoved = true;
-			continue;
 		}
-
-		touchInfo.touchDelta = deltaVector;
 		touchInfo.touchClientPosition = new Vector2(touch.clientX, touch.clientY);
 		touchInfo.touchPosition = touchPosition;
 		touchInfo.touchOnNodeIndex = touchOnNodeIndex;
