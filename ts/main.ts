@@ -639,6 +639,26 @@ function moveNodes(delta: Vector2, nodeIndices: number[]) {
 	});
 }
 
+function getConnectedNodes(selectedNodeIndex : number): number[]{
+	if (selectedNodeIndex === -1) return [];
+	const toVisit = [selectedNodeIndex];
+	const visited = new Set<number>();
+
+	while (toVisit.length > 0) {
+		const i = toVisit.pop()!;
+		if (visited.has(i)) continue;
+		visited.add(i);
+
+		for (const e of edges) {
+			if (e.nodeIndex1 === i && !visited.has(e.nodeIndex2))
+				toVisit.push(e.nodeIndex2);
+			else if (e.nodeIndex2 === i && !visited.has(e.nodeIndex1))
+				toVisit.push(e.nodeIndex1);
+		}
+	}
+	return Array.from(visited);
+}
+
 function deleteNodes(nodeIndices: number[]) {
 	new Int32Array(nodeIndices).sort().reverse().forEach(nodeIndex => deleteNode(nodeIndex));
 	draw(window.performance.now());
@@ -822,7 +842,7 @@ function mousedown(event: MouseEvent) {
 					}
 				}
 				else if (event.altKey) {
-					state = State.Pan;
+					selectedNodeIndices = getConnectedNodes(mouseDownNodeIndex);
 				}
 				else {
 					if (mouseDownNodeIndex === -1 && mouseDownEdgeIndex === -1) {
@@ -1424,7 +1444,13 @@ function touchend(event: TouchEvent) {
 		touchHoldTimer = undefined;
 		state = State.None;
 	}
+	else if (touchInfos.size === 1){
+		if (lastSingleTouchStartNodeIndex !== -1){
+			selectedNodeIndices = getConnectedNodes(lastSingleTouchStartNodeIndex);
+		}
+	}
 	else if (touchInfos.size === 2) {
+		
 		clearTimeout(touchHoldTimer);
 		touchHoldTimer = undefined;
 		state = State.Pan;

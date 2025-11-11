@@ -23,6 +23,6 @@ To Do
 - [ ] Graph generators for common patterns
 - [ ] Controlled algroithm animations
 - [ ] Smooth animations
-- [ ] Island Selection
+- [x] Island Selection
 - [ ] Render Optimisation:
 	- [ ] Camera occlusion
