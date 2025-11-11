@@ -278,7 +278,7 @@ const defaultNodeRadius = 12.5;	// px
 const edgeThickness = 2;	// px
 let edgeAnimOffset = 0;
 
-const touchEnabled = Modernizr.touchevents;
+//const touchEnabled = Modernizr.touchevents;
 
 // zoom anim variables
 const zoomSpeed = 0.001;
@@ -543,7 +543,7 @@ function getEdgeIndexAtPosition(edges: GraphEdge[], position: Vector2) : number
 		let node2 = nodes[edge.nodeIndex2]!;
 		
 		let distance = (new Line(node1.position, node2?.position)).getPointDistance(position);
-		const selectDistance = (touchEnabled ? 12 : 8) * window.devicePixelRatio;
+		const selectDistance = (Modernizr.touchevents ? 12 : 8) * window.devicePixelRatio;
 		if (distance < selectDistance) {
 			if (closestEdgeIndex === -1) {
 				closestEdgeIndex = edgeIndex;
@@ -1219,12 +1219,17 @@ function touchmove(event: TouchEvent) {
 		let touchInfo = touchInfos.get(touch.identifier);
 		if (touchInfo === undefined)
 			continue;
-		touchInfo.touchDelta = new Vector2(
+
+		const deltaVector = new Vector2(
 			touch.clientX - touchInfo.touchClientPosition.x,
 			touch.clientY - touchInfo.touchClientPosition.y
-		);
-		if (touchInfo.touchDelta.magnitudeSqr >= moveThreshold ** 2)
+		); 
+		if (deltaVector.magnitudeSqr >= moveThreshold ** 2){
 			anyTouchMoved = true;
+			continue;
+		}
+
+		touchInfo.touchDelta = deltaVector;
 		touchInfo.touchClientPosition = new Vector2(touch.clientX, touch.clientY);
 		touchInfo.touchPosition = touchPosition;
 		touchInfo.touchOnNodeIndex = touchOnNodeIndex;
@@ -1243,7 +1248,7 @@ function touchmove(event: TouchEvent) {
 				if (touchInfo.touchStartNodeIndex !== -1)
 					state = State.DrawEdge;
 				else if (touchInfo.touchStartEdgeIndex !== -1){
-					if (touchInfo.touchOnEdgeIndex != touchInfo.touchStartEdgeIndex){
+					if (touchInfo.touchOnEdgeIndex !== touchInfo.touchStartEdgeIndex){
 						currentNodeColor = randomHslColor();
 						state = State.SplitEdge;
 					}
@@ -1440,7 +1445,7 @@ let lastDrawTimestamp: number = -1;
 function draw(timeStamp: number) {
 	let deltaTime = lastDrawTimestamp === -1 ? 0 : lastDrawTimestamp - timeStamp;
 
-	if (touchEnabled) {
+	if (Modernizr.touchevents) {
 		lastMouseDownPosition = lastSingleTouchStartPosition;
 		lastMousePosition = lastSingleTouchPosition;
 		lastMouseDownNodeIndex = lastSingleTouchStartNodeIndex;
