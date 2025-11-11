@@ -1,44 +1,72 @@
 #!/usr/bin/env bash 
 
+set -uo pipefail
+
 app_name="$(basename "${BASH_SOURCE[0]}")"
 
-USAGE=$(cat << EOF
+print_help() {
+	expand -t 4 << EOF
 Usage:
-    $app_name <SVG_FILE>
-        Generate PNG images from SVG files.
+	$app_name <SVG_FILES...>
+		Generate PNG images from SVG files.
 
 Options:
-    -s, --sizes=<SIZE_LIST>
-        Which sizes to render SVG files formatted as comma separated integer
-        values. Original size from the SVG file is used when this option is
-        missing or 0 is used.
+	-s, --sizes=<SIZE_LIST>
+		Which sizes to render SVG files formatted as comma separated integer
+		values. Original size from the SVG file is used when this option is
+		missing or 0 is used.
 
-    -b, --background=<COLOR>
-        Background color to use while rendering SVG.
+	-b, --background=<COLOR>
+		Background color to use while rendering SVG.
 
-    -a, --apple=[SIZE,PADDING]
-        Apple touch icon size to generate. "180,25" is used when no size or
-        padding argument is given. Padding is automatically calculated as 1/7
-        of size if only size is given.
+	-a, --apple=[SIZE[,PADDING]]
+		Apple touch icon size to generate. "180,25" is used when no size or
+		padding argument is given. Padding is automatically calculated as 1/7
+		of size if only size is given.
 
-    -h, --help
-        Show this help information and exit.
+	--color, --no-color
+		Enabe/Disable terminal color output.
+
+	-v, --verbose
+		Enabe diagnostic output.
+
+	-?, --help
+		Show this help information and exit.
 EOF
-)
+}
+
+for ((i = 1; i <= $#; i++)); do
+	opt="${!i}"
+	case "$opt" in
+		-\?|--help)
+			print_help
+			exit 0
+			;;
+		--)
+			break
+			;;
+	esac
+done
 
 getopt -q -T
 if [[ $? -ne 4 ]]; then
-	echo "$app_name: This script requires an enhanced getopt version." >&2
+	echo "$app_name: [Error] This script requires an enhanced getopt version." >&2
 	exit 1
 fi
 
 args=()
-opts=$(getopt -o 'hs:b:a::' -l 'help,sizes:,background:,apple::' -n "$app_name" -- "$@") || exit $?
+opts=$(getopt -o 's:b:a::v' -l 'sizes:,background:,apple::,color,no-color,verbose' -n "$app_name" -- "$@") || exit $?
 
 eval "opts=($opts)"
 
 sizes=0
 apple=0
+verbose=0
+if [[ -n NO_COLOR ]]; then
+	color=0
+else
+	color=
+fi
 
 for ((i = 0; i < ${#opts[@]}; i++)); do
 	opt="${opts["$i"]}"
@@ -57,9 +85,14 @@ for ((i = 0; i < ${#opts[@]}; i++)); do
 			readarray -t -d, apple_sizes < <(printf "%s" "${opts["$i"]}")
 			apple=1
 			;;
-		-h|--help)
-			echo "$USAGE"
-			exit 0
+		--color)
+			color=1
+			;;
+		--no-color)
+			color=0
+			;;
+		-v|--verbose)
+			verbose=1
 			;;
 		--)
 			args+=("${opts[@]:i+1}")
@@ -79,15 +112,23 @@ set -- "${args[@]}"
 command -v resvg > /dev/null; resvg=$?
 
 if [[ resvg -ne 0 ]]; then
-	echo "Cannot find 'resvg' command. Make sure resvg is installed and resvg reachable from the current working directory. See: https://github.com/RazrFalcon/resvg" >&2
+	echo "[Error] Cannot find 'resvg' command. Make sure resvg is installed and reachable from the current working directory. See: https://github.com/RazrFalcon/resvg" >&2
 	exit 1
 fi
 
 command -v magick > /dev/null; magick=$?
 
 if [[ magick -ne 0 ]]; then
-	echo "Cannot find 'magick' command. Make sure ImageMagick is installed and reachable from the current working directory. See: https://www.imagemagick.org" >&2
+	echo "[Error] Cannot find 'magick' command. Make sure ImageMagick is installed and reachable from the current working directory. See: https://www.imagemagick.org" >&2
 	exit 1
+fi
+
+if [[ -z "$color" ]]; then
+	if [[ -t 1 ]]; then
+		color=1
+	else
+		color=0
+	fi
 fi
 
 status=0
@@ -98,6 +139,13 @@ export_png() {
 			resvg ${background:+--background "$background"} "$2" "$3"
 		else
 			resvg ${background:+--background "$background"} -w "$1" -h "$1" "$2" "$3"
+		fi &&
+		if [[ verbose -ne 0 ]]; then
+			if [[ color -ne 0 ]]; then
+				echo -e "\E[0;90mGenerate:\E[m $3"
+			else
+				echo -e "Generate: $3"
+			fi
 		fi
 	fi
 }
