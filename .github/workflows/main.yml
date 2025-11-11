@@ -85,6 +85,7 @@ jobs:
         with:
           path: |
             bin/sass
+            bin/src
           key: sass-${{ steps.get-sass-sha.outputs.data }}
 
       - if: ${{ steps.restore-sass.outputs.cache-hit != 'true' }}
