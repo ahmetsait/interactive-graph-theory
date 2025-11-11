@@ -708,7 +708,7 @@ function updatePhysics() {
 
 	for(let i = 0; i < nodes.length; i++) {
 		let force = new Vector2();
-		if ((lastMouseDownNodeIndex === i || selectedNodeIndices.indexOf(i)) && state == State.MoveNode)
+		if ((lastMouseDownNodeIndex === i || selectedNodeIndices.indexOf(i) >= 0) && state == State.MoveNode)
 			continue;
 		const a = nodes[i]!;
 		
@@ -1091,10 +1091,10 @@ function wheel(event: WheelEvent) {
 
 //#region Touch Controls
 
-	canvas.addEventListener("touchstart", touchstart, { passive: false });
-	canvas.addEventListener("touchmove", touchmove, { passive: false });
-	canvas.addEventListener("touchend", touchend, { passive: false });
-	canvas.addEventListener("touchcancel", touchend, { passive: false });
+canvas.addEventListener("touchstart", touchstart, { passive: false });
+canvas.addEventListener("touchmove", touchmove, { passive: false });
+canvas.addEventListener("touchend", touchend, { passive: false });
+canvas.addEventListener("touchcancel", touchend, { passive: false });
 
 const touchDoubleTapTimeout = 300; // ms
 const touchHoldTimeout = 300; // ms
