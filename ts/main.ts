@@ -554,7 +554,8 @@ function getEdgeIndexAtPosition(edges: GraphEdge[], position: Vector2) : number
 		let node2 = nodes[edge.nodeIndex2]!;
 		
 		let distance = (new Line(node1.position, node2?.position)).getPointDistance(position);
-		if (distance < 8) {
+		const selectDistance = touchEnabled ? 12 : 8;
+		if (distance < selectDistance) {
 			if (closestEdgeIndex === -1) {
 				closestEdgeIndex = edgeIndex;
 				resultEdge = edge;
@@ -1108,6 +1109,8 @@ class TouchInfo {
 		public touchDelta: Vector2,
 		public touchStartNodeIndex: number,
 		public touchOnNodeIndex: number,
+		public touchStartEdgeIndex: number,
+		public touchOnEdgeIndex: number,
 		public touchStartTimeStamp: number,
 		public touchTimeStamp: number) { }
 }
@@ -1115,6 +1118,7 @@ class TouchInfo {
 let touchInfos = new Map<number, TouchInfo>();
 
 let lastSingleTouchStartNodeIndex = -1;
+let lastSingleTouchStartEdgeIndex = -1;
 let lastSingleTouchStartPosition: Vector2 | null = null;
 let lastSingleTouchPosition: Vector2 | null = null;
 let lastSingleTouchStartTimestamp: number = -1;
@@ -1127,6 +1131,9 @@ function touchstart(event: TouchEvent) {
 		let touch = event.changedTouches[i]!;
 		let touchPosition = getPositionRelativeToElement(touch.target as Element, touch.clientX, touch.clientY);
 		let touchStartNodeIndex = getNodeIndexAtPosition(nodes, touchPosition);
+		let touchStartEdgeIndex = -1;
+		if (touchStartNodeIndex === -1)
+			touchStartEdgeIndex = getEdgeIndexAtPosition(edges, touchPosition);
 
 		touchInfos.set(
 			touch.identifier,
@@ -1137,6 +1144,8 @@ function touchstart(event: TouchEvent) {
 				new Vector2,
 				touchStartNodeIndex,
 				touchStartNodeIndex,
+				touchStartEdgeIndex,
+				touchStartEdgeIndex,
 				event.timeStamp,
 				event.timeStamp,
 			)
@@ -1179,7 +1188,8 @@ function touchstart(event: TouchEvent) {
 				}
 				break;
 		}
-		lastSingleTouchStartNodeIndex = touchInfo.touchStartNodeIndex
+		lastSingleTouchStartNodeIndex = touchInfo.touchStartNodeIndex;
+		lastSingleTouchStartEdgeIndex = touchInfo.touchStartEdgeIndex;
 		lastSingleTouchStartPosition = touchInfo.touchStartPosition;
 		lastSingleTouchPosition = touchInfo.touchPosition;
 		lastSingleTouchStartTimestamp = touchInfo.touchStartTimeStamp;
@@ -1203,6 +1213,7 @@ function touchmove(event: TouchEvent) {
 		let touch = event.changedTouches[i]!;
 		let touchPosition = getPositionRelativeToElement(touch.target as Element, touch.clientX, touch.clientY);
 		let touchOnNodeIndex = getNodeIndexAtPosition(nodes, touchPosition);
+		let touchOnEdgeIndex = getEdgeIndexAtPosition(edges, touchPosition);
 		// Update touch infos
 		let touchInfo = touchInfos.get(touch.identifier);
 		if (touchInfo === undefined)
@@ -1214,6 +1225,7 @@ function touchmove(event: TouchEvent) {
 		touchInfo.touchClientPosition = new Vector2(touch.clientX, touch.clientY);
 		touchInfo.touchPosition = touchPosition;
 		touchInfo.touchOnNodeIndex = touchOnNodeIndex;
+		touchInfo.touchOnEdgeIndex = touchOnEdgeIndex;
 		touchInfo.touchTimeStamp = event.timeStamp;
 	}
 
@@ -1224,7 +1236,11 @@ function touchmove(event: TouchEvent) {
 		switch (state) {
 			case State.None:
 				if (touchInfo.touchStartNodeIndex !== -1)
-					state = State.DrawEdge
+					state = State.DrawEdge;
+				else if (touchInfo.touchStartEdgeIndex !== -1 && touchInfo.touchOnEdgeIndex != touchInfo.touchStartEdgeIndex){
+					currentNodeColor = randomHslColor();
+					state = State.SplitEdge;
+				}
 				else {
 					currentNodeColor = randomHslColor();
 					state = State.DrawNode;
@@ -1290,6 +1306,11 @@ function touchend(event: TouchEvent) {
 						addItemUnique(selectedNodeIndices, touchInfo.touchStartNodeIndex);
 					break;
 				}
+				else if (touchInfo.touchStartEdgeIndex !== -1){
+					if (!removeItem(selectedEdgeIndices, touchInfo.touchStartEdgeIndex))
+						addItemUnique(selectedEdgeIndices, touchInfo.touchStartEdgeIndex);
+					break;
+				}
 				currentNodeColor = randomHslColor();
 			// goto case State.DrawNode;
 			case State.DrawNode:
@@ -1316,7 +1337,7 @@ function touchend(event: TouchEvent) {
 				}
 				else if (lastMouseDownNodeIndex !== -1)
 				{
-					if (lastMouseDownPosition === null)
+					if (lastSingleTouchPosition === null)
 						throw new Error("State machine bug.");
 					const newNode = new GraphNode(
 						new Vector2(touchInfo.touchPosition.x, touchInfo.touchPosition.y),
@@ -1329,7 +1350,26 @@ function touchend(event: TouchEvent) {
 					saveLastState();
 				}
 				break;
+			case State.SplitEdge:
+				if (lastSingleTouchPosition === null)
+					throw new Error("State machine bug.");
+				const newNode = new GraphNode(
+						touchInfo.touchPosition,
+						defaultNodeRadius,
+						currentNodeColor,
+						"",
+					);
 
+				const newNodeIndex = nodes.push(newNode) - 1;
+				const splittedEdge = edges[touchInfo.touchStartEdgeIndex];
+				edges.push(new GraphEdge(splittedEdge!.nodeIndex1, newNodeIndex, splittedEdge!.edgeType, splittedEdge!.weight));
+				edges.push(new GraphEdge(newNodeIndex, splittedEdge!.nodeIndex2, splittedEdge!.edgeType, splittedEdge!.weight));
+
+				removeItem(edges, splittedEdge);
+
+				// Edge leri pushla
+				saveLastState();
+				break;
 			case State.BoxSelect:
 				if (lastSingleTouchStartPosition === null)
 					throw new Error("State machine bug.");
@@ -1397,6 +1437,7 @@ function draw(timeStamp: number) {
 		lastMouseDownPosition = lastSingleTouchStartPosition;
 		lastMousePosition = lastSingleTouchPosition;
 		lastMouseDownNodeIndex = lastSingleTouchStartNodeIndex;
+		lastMouseDownEdgeIndex = lastSingleTouchStartEdgeIndex;
 	}
 
 	ctx.save();
