@@ -302,17 +302,6 @@ ctx.imageSmoothingQuality = "high";
 
 new ResizeObserver(resize).observe(canvas);
 window.addEventListener("load", load);
-//window.addEventListener("onbeforeunload", unload);
-canvas.addEventListener("mousedown", mousedown);
-canvas.addEventListener("mousemove", mousemove);
-canvas.addEventListener("mouseup", mouseup);
-canvas.addEventListener("wheel", wheel);
-if (touchEnabled) {
-	canvas.addEventListener("touchstart", touchstart, { passive: false });
-	canvas.addEventListener("touchmove", touchmove, { passive: false });
-	canvas.addEventListener("touchend", touchend, { passive: false });
-	canvas.addEventListener("touchcancel", touchend, { passive: false });
-}
 canvas.addEventListener("contextmenu", event => event.preventDefault());
 
 document.addEventListener("keydown", (e: KeyboardEvent) => {
@@ -770,6 +759,11 @@ function togglePhysics(){
 
 //#region Mouse Controls
 
+canvas.addEventListener("mousedown", mousedown);
+canvas.addEventListener("mousemove", mousemove);
+canvas.addEventListener("mouseup", mouseup);
+canvas.addEventListener("wheel", wheel);
+
 const mouseHoldDistanceThreshold = 1;
 let lastMousePosition: Vector2 | null = null;
 let lastMouseDownPosition: Vector2 | null = null;
@@ -1097,6 +1091,11 @@ function wheel(event: WheelEvent) {
 
 //#region Touch Controls
 
+	canvas.addEventListener("touchstart", touchstart, { passive: false });
+	canvas.addEventListener("touchmove", touchmove, { passive: false });
+	canvas.addEventListener("touchend", touchend, { passive: false });
+	canvas.addEventListener("touchcancel", touchend, { passive: false });
+
 const touchDoubleTapTimeout = 300; // ms
 const touchHoldTimeout = 300; // ms
 const touchDoubleTapDistanceThreshold = 20; // px I guess?
@@ -1123,6 +1122,7 @@ let lastSingleTouchStartPosition: Vector2 | null = null;
 let lastSingleTouchPosition: Vector2 | null = null;
 let lastSingleTouchStartTimestamp: number = -1;
 let touchHoldTimer: number | undefined = undefined;
+let moveThreshold = 5;
 
 function touchstart(event: TouchEvent) {
 	event.preventDefault();
@@ -1209,6 +1209,7 @@ function touchstart(event: TouchEvent) {
 }
 
 function touchmove(event: TouchEvent) {
+	let anyTouchMoved = state !== State.None;
 	for (let i = 0; i < event.changedTouches.length; i++) {
 		let touch = event.changedTouches[i]!;
 		let touchPosition = getPositionRelativeToElement(touch.target as Element, touch.clientX, touch.clientY);
@@ -1222,12 +1223,16 @@ function touchmove(event: TouchEvent) {
 			touch.clientX - touchInfo.touchClientPosition.x,
 			touch.clientY - touchInfo.touchClientPosition.y
 		);
+		if (touchInfo.touchDelta.magnitudeSqr >= moveThreshold ** 2)
+			anyTouchMoved = true;
 		touchInfo.touchClientPosition = new Vector2(touch.clientX, touch.clientY);
 		touchInfo.touchPosition = touchPosition;
 		touchInfo.touchOnNodeIndex = touchOnNodeIndex;
 		touchInfo.touchOnEdgeIndex = touchOnEdgeIndex;
 		touchInfo.touchTimeStamp = event.timeStamp;
 	}
+	if (!anyTouchMoved)
+		return;
 
 	if (touchInfos.size === 1) {
 		clearTimeout(touchHoldTimer);
