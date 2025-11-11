@@ -535,7 +535,7 @@ function getNodeIndexAtPosition(nodes: GraphNode[], position: Vector2): number {
 function getEdgeIndexAtPosition(edges: GraphEdge[], position: Vector2) : number
 {
 	let closestEdgeIndex = -1;
-	let resultEdge : GraphEdge = new GraphEdge(-1, -1 , EdgeType.Bidirectional, 1);
+	let minDistance = Number.POSITIVE_INFINITY;
 
 	for (let edgeIndex = 0; edgeIndex < edges.length; edgeIndex++) {
 		let edge = edges[edgeIndex]!;
@@ -543,15 +543,15 @@ function getEdgeIndexAtPosition(edges: GraphEdge[], position: Vector2) : number
 		let node2 = nodes[edge.nodeIndex2]!;
 		
 		let distance = (new Line(node1.position, node2?.position)).getPointDistance(position);
-		const selectDistance = touchEnabled ? 12 : 8;
+		const selectDistance = (touchEnabled ? 12 : 8) * window.devicePixelRatio;
 		if (distance < selectDistance) {
 			if (closestEdgeIndex === -1) {
 				closestEdgeIndex = edgeIndex;
-				resultEdge = edge;
+				minDistance = distance;
 			}
-			else if (distance < (new Line(nodes[resultEdge.nodeIndex1]!.position, nodes[resultEdge.nodeIndex2]!.position)).getPointDistance(position)) {
+			else if (distance < minDistance) {
 				closestEdgeIndex = edgeIndex;
-				resultEdge = edge;
+				minDistance = distance;
 			}
 		}
 	}
@@ -1242,9 +1242,11 @@ function touchmove(event: TouchEvent) {
 			case State.None:
 				if (touchInfo.touchStartNodeIndex !== -1)
 					state = State.DrawEdge;
-				else if (touchInfo.touchStartEdgeIndex !== -1 && touchInfo.touchOnEdgeIndex != touchInfo.touchStartEdgeIndex){
-					currentNodeColor = randomHslColor();
-					state = State.SplitEdge;
+				else if (touchInfo.touchStartEdgeIndex !== -1){
+					if (touchInfo.touchOnEdgeIndex != touchInfo.touchStartEdgeIndex){
+						currentNodeColor = randomHslColor();
+						state = State.SplitEdge;
+					}
 				}
 				else {
 					currentNodeColor = randomHslColor();
