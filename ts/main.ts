@@ -1026,7 +1026,7 @@ function mouseup(event: MouseEvent) {
 				{
 					const newNode = new GraphNode(
 						new Vector2(mousePosition.x, mousePosition.y),
-						nodeRadiusCurve(defaultNodeRadius),
+						defaultNodeRadius,
 						randomHslColor(),
 						"",
 					)
@@ -1258,9 +1258,9 @@ function touchmove(event: TouchEvent) {
 
 			case State.MoveNode:
 				if (selectedNodeIndices.indexOf(lastSingleTouchStartNodeIndex) !== -1)
-					moveNodes(touchInfo.touchDelta, selectedNodeIndices);
+					moveNodes(touchInfo.touchDelta.div(screenData.zoom), selectedNodeIndices);
 				else
-					moveNodes(touchInfo.touchDelta, [lastSingleTouchStartNodeIndex]);
+					moveNodes(touchInfo.touchDelta.div(screenData.zoom), [lastSingleTouchStartNodeIndex]);
 				saveLastState();
 				break;
 
@@ -1280,15 +1280,30 @@ function touchmove(event: TouchEvent) {
 		lastSingleTouchPosition = touchInfo.touchPosition;
 	}
 	else if (touchInfos.size === 2) {
-		let touchInfoList = [...touchInfos.values()];
-		let touchInfo1 = touchInfoList[0]!;
-		let touchInfo2 = touchInfoList[1]!;
-		switch (state) {
-			case State.Pan:
-				let deltaAvg = touchInfo1.touchDelta.add(touchInfo2.touchDelta).div(2);
-				screenData.offset = screenData.offset.add(deltaAvg);
-				break;
-		}
+		let [t1, t2] = [...touchInfos.values()];
+
+		let prev1 = t1!.touchClientPosition.sub(t1!.touchDelta);
+		let prev2 = t2!.touchClientPosition.sub(t2!.touchDelta);
+
+		let prevDist = prev1.sub(prev2).magnitude;
+		let currDist = t1!.touchClientPosition.sub(t2!.touchClientPosition).magnitude;
+		if (prevDist < 1e-3) prevDist = 1e-3;
+
+		let scale = currDist / prevDist;
+		let newZoom = clamp(screenData.zoom * scale, minZoom, maxZoom);
+
+		let rect = canvas.getBoundingClientRect();
+		let midScreen = new Vector2(
+			(t1!.touchClientPosition.x + t2!.touchClientPosition.x) / 2 - rect.left,
+			(t1!.touchClientPosition.y + t2!.touchClientPosition.y) / 2 - rect.top
+		);
+		let midWorld = midScreen.sub(screenData.offset).div(screenData.zoom);
+
+		screenData.zoom = newZoom;
+		screenData.offset = midScreen.sub(midWorld.mul(newZoom));
+
+		let deltaAvg = t1!.touchDelta.add(t2!.touchDelta).div(2);
+		screenData.offset = screenData.offset.add(deltaAvg);
 	}
 	else if (touchInfos.size > 2) {
 		state = State.None;
@@ -1343,19 +1358,29 @@ function touchend(event: TouchEvent) {
 						edges.push(new GraphEdge(lastSingleTouchStartNodeIndex, touchInfo.touchOnNodeIndex, EdgeType.Directional, null));
 						saveLastState();
 					}
+					else{
+						const edge = edges.find((e) => (e.nodeIndex1 === touchInfo.touchOnNodeIndex && e.nodeIndex2 === lastSingleTouchStartNodeIndex)) as GraphEdge;
+						if (edge)
+						{
+							const index = edges.indexOf(edge);
+							if (edge.edgeType === EdgeType.Directional)
+								edges[index]!.edgeType = EdgeType.Bidirectional
+							saveLastState();
+						}
+					}
 				}
-				else if (lastMouseDownNodeIndex !== -1)
+				else if (lastSingleTouchStartNodeIndex !== -1)
 				{
 					if (lastSingleTouchPosition === null)
 						throw new Error("State machine bug.");
 					const newNode = new GraphNode(
 						new Vector2(touchInfo.touchPosition.x, touchInfo.touchPosition.y),
-						nodeRadiusCurve(defaultNodeRadius),
+						defaultNodeRadius,
 						randomHslColor(),
 						"",
 					)
 					nodes.push(newNode);
-					edges.push(new GraphEdge(lastMouseDownNodeIndex, nodes.indexOf(newNode), EdgeType.Directional, null));
+					edges.push(new GraphEdge(lastSingleTouchStartNodeIndex, nodes.indexOf(newNode), EdgeType.Directional, null));
 					saveLastState();
 				}
 				break;
