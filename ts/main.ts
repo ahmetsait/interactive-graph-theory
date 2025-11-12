@@ -698,6 +698,16 @@ function cutEdges(scissor: Line) {
 	}
 }
 
+function isEdgeVisible(e: GraphEdge, camLeft: number, camRight: number,camTop: number, camBottom: number,): boolean {
+	const n1 = nodes[e.nodeIndex1]!.position;
+	const n2 = nodes[e.nodeIndex2]!.position;
+	const minX = Math.min(n1.x, n2.x);
+	const maxX = Math.max(n1.x, n2.x);
+	const minY = Math.min(n1.y, n2.y);
+	const maxY = Math.max(n1.y, n2.y);
+	return !(maxX < camLeft || minX > camRight || maxY < camTop || minY > camBottom);
+}
+
 function tryVibrate(pattern: number[]): void;
 function tryVibrate(pattern: number): void;
 
@@ -1646,9 +1656,13 @@ function draw(timeStamp: number) {
 				ctx.stroke();
 			}
 		}
+		const camLeft   = -screenData.offset.x / screenData.zoom;
+		const camTop    = -screenData.offset.y / screenData.zoom;
+		const camRight  = (canvas.width  - screenData.offset.x) / screenData.zoom;
+		const camBottom = (canvas.height - screenData.offset.y) / screenData.zoom;
 
 		for (let i = 0; i < edges.length; i++) {
-			if (state === State.SplitEdge && i === lastMouseDownEdgeIndex)
+			if ((state === State.SplitEdge && i === lastMouseDownEdgeIndex) || !isEdgeVisible(edges[i]!, camLeft, camRight, camTop, camBottom))
 				continue;
 			let edge = edges[i]!;
 			const node1 = nodes[edge.nodeIndex1];
@@ -1708,6 +1722,11 @@ function draw(timeStamp: number) {
 		ctx.textAlign = "center";
 
 		nodes.forEach(node => {
+			if (node.position.x + node.radius < camLeft ||
+				node.position.x - node.radius > camRight ||
+				node.position.y + node.radius < camTop ||
+				node.position.y - node.radius > camBottom)
+				return;
 			ctx.fillStyle = node.color;
 			ctx.beginPath();
 			ctx.arc(node.position.x, node.position.y, node.radius, 0, 360);

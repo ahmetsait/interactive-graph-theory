@@ -21,8 +21,8 @@ To Do
 - [ ] Save PNG image
 - [ ] SVG generation
 - [ ] Graph generators for common patterns
-- [ ] Controlled algroithm animations
+- [ ] Controlled algorithm animations
 - [ ] Smooth animations
 - [x] Island Selection
 - [ ] Render Optimisation:
-	- [ ] Camera occlusion
+	- [x] Camera occlusion
