@@ -276,6 +276,7 @@ function clamp(value: number, min: number, max: number) : number{
 
 const defaultNodeRadius = 12.5;	// px
 const edgeThickness = 2;	// px
+const edgeWeightEditRadius = 15; //px
 let edgeAnimOffset = 0;
 
 //const touchEnabled = Modernizr.touchevents;
@@ -708,6 +709,66 @@ function tryVibrate(pattern : number[] | number){
 	}
 }
 
+let edgeEditorEl: HTMLInputElement | null = null;
+
+function openEdgeWeightEditor(edgeIndex: number) {
+	const edge = edges[edgeIndex]!;
+	const node1 = nodes[edge.nodeIndex1]!.position;
+	const node2 = nodes[edge.nodeIndex2]!.position;
+	const midPoint = node1.add(node2).div(2);
+	const midScreen = midPoint.mul(screenData.zoom).add(screenData.offset);
+
+	const rect = canvas.getBoundingClientRect();
+	const left = rect.left + midScreen.x;
+	const top  = rect.top  + midScreen.y;
+
+	if (edgeEditorEl)
+		edgeEditorEl.remove();
+
+	const input = document.createElement("input");
+	edgeEditorEl = input;
+	input.type = "number";
+	input.step = "any";
+	input.value = String(edge.weight ?? 1);
+	Object.assign(input.style, {
+		position: "fixed",
+		left: `${left - 30}px`,
+		top:  `${top  - 14}px`,
+		width: "60px",
+		height: "28px",
+		padding: "2px 6px",
+		font: "14px/20px system-ui, sans-serif",
+		textAlign: "center",
+		border: "1px solid #888",
+		borderRadius: "6px",
+		background: "#fff",
+		zIndex: "9999",
+	} as CSSStyleDeclaration);
+
+	document.body.appendChild(input);
+	input.focus();
+	input.select();
+
+	const commit = (ok: boolean) => {
+		if (ok) {
+			const v = parseFloat(input.value);
+			if (!Number.isNaN(v)) {
+				edge.weight = v;
+				saveLastState?.();
+				draw(performance.now());
+			}
+		}
+		input.remove();
+		if (edgeEditorEl === input) edgeEditorEl = null;
+	};
+
+	input.addEventListener("keydown", (ev) => {
+		if (ev.key === "Enter") commit(true);
+		else if (ev.key === "Escape") commit(false);
+	});
+	input.addEventListener("blur", () => commit(true));
+}
+
 //#region Physics Related
 
 let physicsRunning = false;
@@ -748,7 +809,10 @@ function updatePhysics() {
 				let dist = delta.magnitude || 0.001;
 				const dir = delta.div(dist);
 
-				const springForce = (dist - idealDist) * spring;
+				const w = e.weight ?? 1;
+				const weightedIdeal = idealDist * Math.sqrt(w);
+
+				const springForce = (dist - weightedIdeal) * spring;
 				const relVel = other.velocity.sub(a.velocity);
 				const dampingForce = relVel.dot(dir) * damping;
 				force = force.add(dir.mul(springForce + dampingForce));
@@ -792,6 +856,8 @@ let lastMouseDownNodeIndex: number = -1;
 let lastMouseDownEdgeIndex: number = -1;
 
 function mousedown(event: MouseEvent) {
+	if (edgeEditorEl && (event.target as HTMLInputElement) !== edgeEditorEl)
+		return;
 	let mousePosition = getPositionRelativeToElement(event.target as Element, event.clientX, event.clientY);
 	let mouseDownNodeIndex = getNodeIndexAtPosition(nodes, mousePosition);
 	let mouseDownEdgeIndex = -1;
@@ -878,6 +944,8 @@ function mousedown(event: MouseEvent) {
 }
 
 function mousemove(event: MouseEvent) {
+	if (edgeEditorEl && (event.target as HTMLInputElement) !== edgeEditorEl)
+		return;
 	let mousePosition = getPositionRelativeToElement(event.target as Element, event.clientX, event.clientY);
 	mouseHoverNodeIndex = getNodeIndexAtPosition(nodes, mousePosition);
 	mouseHoverEdgeIndex = getEdgeIndexAtPosition(edges, mousePosition);
@@ -943,6 +1011,11 @@ function mousemove(event: MouseEvent) {
 }
 
 function mouseup(event: MouseEvent) {
+	if (edgeEditorEl && (event.target as HTMLInputElement) !== edgeEditorEl){
+		edgeEditorEl.remove();
+		edgeEditorEl = null;
+		return;
+	}
 	let mousePosition = getPositionRelativeToElement(event.target as Element, event.clientX, event.clientY);
 	let mouseUpNodeIndex = getNodeIndexAtPosition(nodes, mousePosition);
 	let mouseUpEdgeIndex = getEdgeIndexAtPosition(edges, mousePosition);
@@ -962,6 +1035,14 @@ function mouseup(event: MouseEvent) {
 				else{
 					selectedEdgeIndices = [];
 					selectedNodeIndices = [];
+					const pos = getPositionRelativeToElement(canvas, event.clientX, event.clientY);
+					const edgeIdx = getEdgeIndexAtPosition(edges, pos);
+					const midpoint = nodes[edges[edgeIdx]!.nodeIndex1]!.position.add(nodes[edges[edgeIdx]!.nodeIndex2]!.position).div(2);
+					if (edgeIdx !== -1 && pos.sub(midpoint).magnitudeSqr < edgeWeightEditRadius ** 2) {
+						openEdgeWeightEditor(edgeIdx);
+						return;
+					}
+
 					addItemUnique(selectedEdgeIndices, lastMouseDownEdgeIndex);
 				}
 			}
@@ -1074,37 +1155,41 @@ function mouseup(event: MouseEvent) {
 }
 
 function wheel(event: WheelEvent) {
-  event.preventDefault();
+  	event.preventDefault();
+  	if (edgeEditorEl && (event.target as HTMLInputElement) !== edgeEditorEl){
+		edgeEditorEl.remove();
+		edgeEditorEl = null;
+		return;
+	}
+	const factor = Math.exp(-event.deltaY * zoomSpeed * 5);
 
-  const factor = Math.exp(-event.deltaY * zoomSpeed * 5);
+	const rect = canvas.getBoundingClientRect();
+	pivotScreen = new Vector2(event.clientX - rect.left, event.clientY - rect.top);
+	pivotWorld  = pivotScreen.sub(screenData.offset).div(screenData.zoom);
 
-  const rect = canvas.getBoundingClientRect();
-  pivotScreen = new Vector2(event.clientX - rect.left, event.clientY - rect.top);
-  pivotWorld  = pivotScreen.sub(screenData.offset).div(screenData.zoom);
+	const currentLogZ = Math.log(screenData.zoom);
+	const targetZ = Math.min(maxZoom, Math.max(minZoom, screenData.zoom * factor));
+	animStartLogZ  = currentLogZ;
+	animTargetLogZ = Math.log(targetZ);
+	animStartTime  = performance.now();
 
-  const currentLogZ = Math.log(screenData.zoom);
-  const targetZ = Math.min(maxZoom, Math.max(minZoom, screenData.zoom * factor));
-  animStartLogZ  = currentLogZ;
-  animTargetLogZ = Math.log(targetZ);
-  animStartTime  = performance.now();
+	if (animId !== null) cancelAnimationFrame(animId);
 
-  if (animId !== null) cancelAnimationFrame(animId);
+	const step = () => {
+		const t = Math.min(1, (performance.now() - animStartTime) / ZOOM_ANIM_MS);
+		const logZ = animStartLogZ + (animTargetLogZ - animStartLogZ) * t;
+		const z = Math.exp(logZ);
+		screenData.zoom   = z;
+		screenData.offset = pivotScreen.sub(pivotWorld.mul(z));
 
-  const step = () => {
-    const t = Math.min(1, (performance.now() - animStartTime) / ZOOM_ANIM_MS);
-    const logZ = animStartLogZ + (animTargetLogZ - animStartLogZ) * t;
-    const z = Math.exp(logZ);
-    screenData.zoom   = z;
-    screenData.offset = pivotScreen.sub(pivotWorld.mul(z));
-
-    draw(performance.now());
-    if (t < 1)
-		animId = requestAnimationFrame(step);
-    else
-		animId = null;
-  };
-  animId = requestAnimationFrame(step);
-  saveLastState();
+		draw(performance.now());
+		if (t < 1)
+			animId = requestAnimationFrame(step);
+		else
+			animId = null;
+	};
+	animId = requestAnimationFrame(step);
+	saveLastState();
 }
 
 //#endregion
@@ -1146,7 +1231,8 @@ let moveThreshold = 5;
 
 function touchstart(event: TouchEvent) {
 	event.preventDefault();
-
+	if (edgeEditorEl && (event.target as HTMLInputElement) !== edgeEditorEl)
+		return;
 	for (let i = 0; i < event.changedTouches.length; i++) {
 		let touch = event.changedTouches[i]!;
 		let touchPosition = getPositionRelativeToElement(touch.target as Element, touch.clientX, touch.clientY);
@@ -1229,6 +1315,8 @@ function touchstart(event: TouchEvent) {
 }
 
 function touchmove(event: TouchEvent) {
+	if (edgeEditorEl && (event.target as HTMLInputElement) !== edgeEditorEl)
+		return;
 	let anyTouchMoved = state !== State.None;
 	for (let i = 0; i < event.changedTouches.length; i++) {
 		let touch = event.changedTouches[i]!;
@@ -1333,6 +1421,11 @@ function touchmove(event: TouchEvent) {
 }
 
 function touchend(event: TouchEvent) {
+	if (edgeEditorEl && (event.target as HTMLInputElement) !== edgeEditorEl){
+		edgeEditorEl.remove();
+		edgeEditorEl = null;
+		return;
+	}
 	let endedTouchInfos = new Map<number, TouchInfo>();
 	for (let i = 0; i < event.changedTouches.length; i++) {
 		let touch = event.changedTouches[i]!;
@@ -1351,6 +1444,21 @@ function touchend(event: TouchEvent) {
 					break;
 				}
 				else if (touchInfo.touchStartEdgeIndex !== -1){
+					selectedNodeIndices = [];
+
+					const pos = touchInfo.touchPosition; // zaten world space
+					const edgeIdx = getEdgeIndexAtPosition(edges, pos);
+					if (edgeIdx !== -1) {
+						const edge = edges[edgeIdx]!;
+						const midpoint = nodes[edge.nodeIndex1]!.position
+							.add(nodes[edge.nodeIndex2]!.position)
+							.div(2);
+
+						if (pos.sub(midpoint).magnitudeSqr < edgeWeightEditRadius ** 2) {
+							openEdgeWeightEditor(edgeIdx);
+							return;
+						}
+					}
 					if (!removeItem(selectedEdgeIndices, touchInfo.touchStartEdgeIndex))
 						addItemUnique(selectedEdgeIndices, touchInfo.touchStartEdgeIndex);
 					break;
@@ -1375,7 +1483,7 @@ function touchend(event: TouchEvent) {
 			case State.DrawEdge:
 				if (lastSingleTouchStartNodeIndex !== -1 && touchInfo.touchOnNodeIndex !== -1) {
 					if (!edges.some((edge) => edge.nodeIndex1 === lastSingleTouchStartNodeIndex && edge.nodeIndex2 === touchInfo.touchOnNodeIndex)){
-						edges.push(new GraphEdge(lastSingleTouchStartNodeIndex, touchInfo.touchOnNodeIndex, EdgeType.Directional, null));
+						edges.push(new GraphEdge(lastSingleTouchStartNodeIndex, touchInfo.touchOnNodeIndex, EdgeType.Directional, 1));
 						saveLastState();
 					}
 					else{
@@ -1400,7 +1508,7 @@ function touchend(event: TouchEvent) {
 						"",
 					)
 					nodes.push(newNode);
-					edges.push(new GraphEdge(lastSingleTouchStartNodeIndex, nodes.indexOf(newNode), EdgeType.Directional, null));
+					edges.push(new GraphEdge(lastSingleTouchStartNodeIndex, nodes.indexOf(newNode), EdgeType.Directional, 1));
 					saveLastState();
 				}
 				break;
@@ -1575,7 +1683,7 @@ function draw(timeStamp: number) {
 
 				ctx.fillStyle = "white";
 				ctx.beginPath();
-				ctx.arc(edgeCenter.x, edgeCenter.y, 15, 0, 360);
+				ctx.arc(edgeCenter.x, edgeCenter.y, edgeWeightEditRadius, 0, 360);
 				ctx.fill();
 
 				ctx.fillStyle = "blue";

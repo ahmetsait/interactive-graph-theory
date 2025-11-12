@@ -16,7 +16,7 @@ To Do
 	- [ ] Graph coloring
 	- [ ] PageRank & Weight based node radius
 - [ ] A way to simply show vertex degrees
-- [ ] Weighted edges
+- [x] Weighted edges
 - [x] Force-directed graph simulation
 - [ ] Save PNG image
 - [ ] SVG generation
