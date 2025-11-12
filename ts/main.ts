@@ -698,7 +698,7 @@ function cutEdges(scissor: Line) {
 	}
 }
 
-function isEdgeVisible(e: GraphEdge, camLeft: number, camRight: number,camTop: number, camBottom: number,): boolean {
+function isEdgeVisible(e: GraphEdge, camLeft: number, camRight: number,camTop: number, camBottom: number): boolean {
 	const n1 = nodes[e.nodeIndex1]!.position;
 	const n2 = nodes[e.nodeIndex2]!.position;
 	const minX = Math.min(n1.x, n2.x);
@@ -1449,6 +1449,7 @@ function touchend(event: TouchEvent) {
 			// @ts-expect-error
 			case State.None:
 				if (touchInfo.touchStartNodeIndex !== -1) {
+					selectedEdgeIndices = [];
 					if (!removeItem(selectedNodeIndices, touchInfo.touchStartNodeIndex))
 						addItemUnique(selectedNodeIndices, touchInfo.touchStartNodeIndex);
 					break;
@@ -1456,7 +1457,7 @@ function touchend(event: TouchEvent) {
 				else if (touchInfo.touchStartEdgeIndex !== -1){
 					selectedNodeIndices = [];
 
-					const pos = touchInfo.touchPosition; // zaten world space
+					const pos = touchInfo.touchPosition;
 					const edgeIdx = getEdgeIndexAtPosition(edges, pos);
 					if (edgeIdx !== -1) {
 						const edge = edges[edgeIdx]!;
@@ -1538,8 +1539,6 @@ function touchend(event: TouchEvent) {
 				edges.push(new GraphEdge(newNodeIndex, splittedEdge!.nodeIndex2, splittedEdge!.edgeType, splittedEdge!.weight));
 
 				removeItem(edges, splittedEdge);
-
-				// Edge leri pushla
 				saveLastState();
 				break;
 			case State.BoxSelect:
