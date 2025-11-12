@@ -185,18 +185,6 @@ class Line {
 }
 
 
-function clearCanvas(canvas: HTMLCanvasElement, ctx: CanvasRenderingContext2D, color: string) {
-	ctx.save();
-	try {
-		ctx.resetTransform();
-		ctx.fillStyle = color;
-		ctx.fillRect(0, 0, canvas.width, canvas.height);
-	}
-	finally {
-		ctx.restore();
-	}
-}
-
 for (const dropdownButton of document.getElementsByClassName("dropdown-button")) {
 	dropdownButton.addEventListener("click", (event) => {
 		dropdownButton.nextElementSibling?.classList.toggle("hidden");
@@ -218,61 +206,6 @@ function closeDropdown(event?: MouseEvent) {
 	}
 }
 
-function removeItem<T>(array: T[], item: T) {
-	let i = array.indexOf(item);
-	if (i !== -1) {
-		array.splice(i, 1);
-		return true;
-	}
-	else
-		return false;
-}
-
-function addItemUnique<T>(array: T[], item: T) {
-	let i = array.indexOf(item);
-	if (i === -1) {
-		array.push(item);
-		return true;
-	}
-	else
-		return false;
-}
-
-function hslToRgbHex(h: number, s: number, l: number) {
-	var r, g, b;
-
-	if (s == 0) {
-		r = g = b = l; // achromatic
-	}
-	else {
-		function hue2rgb(p: number, q: number, t: number) {
-			if (t < 0) t += 1;
-			if (t > 1) t -= 1;
-			if (t < 1 / 6) return p + (q - p) * 6 * t;
-			if (t < 1 / 2) return q;
-			if (t < 2 / 3) return p + (q - p) * (2 / 3 - t) * 6;
-			return p;
-		}
-
-		var q = l < 0.5 ? l * (1 + s) : l + s - l * s;
-		var p = 2 * l - q;
-		r = hue2rgb(p, q, h + 1 / 3);
-		g = hue2rgb(p, q, h);
-		b = hue2rgb(p, q, h - 1 / 3);
-	}
-
-	return "#" + ((Math.round(r * 255) << 16) + (Math.round(g * 255) << 8) + (Math.round(b * 255))).toString(16);
-}
-
-function randomHslColor(lightness: number = 0.50) {
-	return hslToRgbHex(Math.random(), Math.random() * 0.50 + 0.25, lightness);
-}
-
-function clamp(value: number, min: number, max: number) : number{
-	if (min > max)
-		[min, max] = [max, min];
-	return Math.min(Math.max(value, min), max);
-}
 
 const defaultNodeRadius = 12.5;	// px
 const edgeThickness = 2;	// px
@@ -494,20 +427,88 @@ function saveState(key: string, state: string){
 	}
 }
 
+function load() {
+	loadState("lastState");
+	resize();
+	draw(window.performance.now());
+}
+
+function saveLastState(){
+	const currentState = exportJson();
+	saveState("lastState", currentState);
+}
+
 //#endregion
 
-let state = State.None;
+//#region Helper Functions
 
-// Camera transform
-let screenData = new ScreenData(new Vector2(), 1);
+function clearCanvas(canvas: HTMLCanvasElement, ctx: CanvasRenderingContext2D, color: string) {
+	ctx.save();
+	try {
+		ctx.resetTransform();
+		ctx.fillStyle = color;
+		ctx.fillRect(0, 0, canvas.width, canvas.height);
+	}
+	finally {
+		ctx.restore();
+	}
+}
 
-let selectedNodeIndices: number[] = [];
-let selectedEdgeIndices: number[] = [];
-let mouseHoverNodeIndex: number = -1;
-let mouseHoverEdgeIndex: number = -1;
+function removeItem<T>(array: T[], item: T) {
+	let i = array.indexOf(item);
+	if (i !== -1) {
+		array.splice(i, 1);
+		return true;
+	}
+	else
+		return false;
+}
 
-let currentNodeColor: string;
-let labelCounter = 1;
+function addItemUnique<T>(array: T[], item: T) {
+	let i = array.indexOf(item);
+	if (i === -1) {
+		array.push(item);
+		return true;
+	}
+	else
+		return false;
+}
+
+function hslToRgbHex(h: number, s: number, l: number) {
+	var r, g, b;
+
+	if (s == 0) {
+		r = g = b = l; // achromatic
+	}
+	else {
+		function hue2rgb(p: number, q: number, t: number) {
+			if (t < 0) t += 1;
+			if (t > 1) t -= 1;
+			if (t < 1 / 6) return p + (q - p) * 6 * t;
+			if (t < 1 / 2) return q;
+			if (t < 2 / 3) return p + (q - p) * (2 / 3 - t) * 6;
+			return p;
+		}
+
+		var q = l < 0.5 ? l * (1 + s) : l + s - l * s;
+		var p = 2 * l - q;
+		r = hue2rgb(p, q, h + 1 / 3);
+		g = hue2rgb(p, q, h);
+		b = hue2rgb(p, q, h - 1 / 3);
+	}
+
+	return "#" + ((Math.round(r * 255) << 16) + (Math.round(g * 255) << 8) + (Math.round(b * 255))).toString(16);
+}
+
+function randomHslColor(lightness: number = 0.50) {
+	return hslToRgbHex(Math.random(), Math.random() * 0.50 + 0.25, lightness);
+}
+
+function clamp(value: number, min: number, max: number) : number{
+	if (min > max)
+		[min, max] = [max, min];
+	return Math.min(Math.max(value, min), max);
+}
 
 function getNodeIndexAtPosition(nodes: GraphNode[], position: Vector2): number {
 	let closestNodeIndex = -1;
@@ -585,27 +586,6 @@ function getPositionRelativeToElement(element: Element | null, x: number, y: num
 function nodeRadiusCurve(radius: number): number {
 	return +(Math.sqrt(radius) + defaultNodeRadius).toFixed(2);
 }
-
-function showDialog(id: string) {
-	document.getElementById(id)?.classList.remove("hidden");
-}
-
-function closeDialog(id: string) {
-	document.getElementById(id)?.classList.add("hidden");
-}
-
-for (const layer of document.getElementsByClassName("modal-layer")) {
-	for (const button of layer.getElementsByClassName("modal-close-button")) {
-		button.addEventListener("click", (event) => {
-			closeDialog(layer.id);
-		});
-	}
-}
-
-document.addEventListener("click", (event) => {
-	if (event.target instanceof Element && event.target.classList.contains("modal-layer"))
-		event.target.classList.add("hidden");
-});
 
 function resetAll() {
 	selectedNodeIndices = [];
@@ -708,6 +688,14 @@ function isEdgeVisible(e: GraphEdge, camLeft: number, camRight: number,camTop: n
 	return !(maxX < camLeft || minX > camRight || maxY < camTop || minY > camBottom);
 }
 
+function showDialog(id: string) {
+	document.getElementById(id)?.classList.remove("hidden");
+}
+
+function closeDialog(id: string) {
+	document.getElementById(id)?.classList.add("hidden");
+}
+
 function tryVibrate(pattern: number[]): void;
 function tryVibrate(pattern: number): void;
 
@@ -718,8 +706,6 @@ function tryVibrate(pattern : number[] | number){
 		console.warn("Vibration API not supported on this device.");
 	}
 }
-
-let edgeEditorEl: HTMLInputElement | null = null;
 
 function openEdgeWeightEditor(edgeIndex: number) {
 	const edge = edges[edgeIndex]!;
@@ -778,6 +764,36 @@ function openEdgeWeightEditor(edgeIndex: number) {
 	});
 	input.addEventListener("blur", () => commit(true));
 }
+//#endregion
+
+let state = State.None;
+
+// Camera transform
+let screenData = new ScreenData(new Vector2(), 1);
+
+let selectedNodeIndices: number[] = [];
+let selectedEdgeIndices: number[] = [];
+let mouseHoverNodeIndex: number = -1;
+let mouseHoverEdgeIndex: number = -1;
+
+let currentNodeColor: string;
+let labelCounter = 1;
+
+for (const layer of document.getElementsByClassName("modal-layer")) {
+	for (const button of layer.getElementsByClassName("modal-close-button")) {
+		button.addEventListener("click", (event) => {
+			closeDialog(layer.id);
+		});
+	}
+}
+
+document.addEventListener("click", (event) => {
+	if (event.target instanceof Element && event.target.classList.contains("modal-layer"))
+		event.target.classList.add("hidden");
+});
+
+let edgeEditorEl: HTMLInputElement | null = null;
+
 
 //#region Physics Related
 
@@ -1582,26 +1598,9 @@ function touchend(event: TouchEvent) {
 
 //#endregion
 
-function load() {
-	loadState("lastState");
-	resize();
-	draw(window.performance.now());
-}
-
-function saveLastState(){
-	const currentState = exportJson();
-	saveState("lastState", currentState);
-}
-
 function resize(entries?: ResizeObserverEntry[], observer?: ResizeObserver) {
-	// let w = canvas.width;
-	// let h = canvas.height;
 	canvas.width = canvas.clientWidth * window.devicePixelRatio;
 	canvas.height = canvas.clientHeight * window.devicePixelRatio;
-	// let widthDiff = canvas.width - w;
-	// let heightDiff = canvas.height - h;
-	// offset.x += widthDiff / 2;
-	// offset.y += heightDiff / 2;
 	draw(window.performance.now());
 }
 
