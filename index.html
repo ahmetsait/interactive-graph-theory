@@ -177,9 +177,27 @@
 	<canvas id="canvas"></canvas>
 	
 	<div id="statusbar" class="container statusbar"></div>
+	<div id="timeline-bar">
+		<div id="timeline-controls" onchange="speedChanged(event)">
+			<button onclick="stepback()" id="btn-back" title="Step Back"><i class="fa-solid fa-backward-step"></i></button>
+			<button onclick="togglePlay()"  id="btn-pause" title="Play/Pause"><i class="fa-solid fa-play"></i></button>
+			<button onclick="stepforward()" id="btn-forward" title="Step Forward"><i class="fa-solid fa-forward-step"></i></button>
+			<input id="timeline-range" type="range" min="0" max="1" step="0.001" value="0">
+			<select id="timeline-speed">
+				<option value="0.25">0.25×</option>
+				<option value="0.5">0.5×</option>
+				<option value="1" selected>1×</option>
+				<option value="1.5">1.5×</option>
+				<option value="2">2×</option>
+			</select>
+			<button onclick="stopAnimation()" id="btn-stop" title="Stop Animation"><i class="fa-solid fa-xmark"></i></button>
+		</div>
+
+	</div>
 	
 	<script src="js/vendor/modernizr-custom.js"></script>
 	<script src="js/algorithms.js"></script>
+	<script src="js/animation.js"></script>
 	<script src="js/main.js"></script>
 	
 </body>

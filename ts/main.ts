@@ -1607,182 +1607,245 @@ function resize(entries?: ResizeObserverEntry[], observer?: ResizeObserver) {
 let lastDrawTimestamp: number = -1;
 
 function draw(timeStamp: number) {
-	let deltaTime = lastDrawTimestamp === -1 ? 0 : lastDrawTimestamp - timeStamp;
 
 	if (Modernizr.touchevents) {
-		lastMouseDownPosition = lastSingleTouchStartPosition;
-		lastMousePosition = lastSingleTouchPosition;
-		lastMouseDownNodeIndex = lastSingleTouchStartNodeIndex;
-		lastMouseDownEdgeIndex = lastSingleTouchStartEdgeIndex;
+		lastMouseDownPosition	= lastSingleTouchStartPosition;
+		lastMousePosition		= lastSingleTouchPosition;
+		lastMouseDownNodeIndex	= lastSingleTouchStartNodeIndex;
+		lastMouseDownEdgeIndex	= lastSingleTouchStartEdgeIndex;
 	}
 
-	ctx.save();
+	let f: AnimFrame | null = null;
+	let prog = 0;
+	if (timeline.frames.length > 0) {
+		const idx = Math.floor(timeline.playhead);
+		f = timeline.frames[idx] ?? null;
+		prog = timeline.playhead - idx;
+	}
 
+	const HN = f ? f.highlightedNodeIndices : highlightedNodeIndices;
+	const HE = f ? f.highlightedEdgeIndices : highlightedEdgeIndices;
+	const AE = f ? f.animatedEdgeIndices   : [];
+
+	ctx.save();
 	try {
-		ctx.setTransform(1, 0, 0, 1, 0, 0);
-		ctx.clearRect(0, 0, canvas.width, canvas.height);
+		ctx.setTransform(1,0,0,1,0,0);
+		ctx.clearRect(0,0,canvas.width,canvas.height);
 
 		ctx.setTransform(
-			screenData.zoom * window.devicePixelRatio, // scaleX
-			0,               // skewX
-			0,               // skewY
-			screenData.zoom * window.devicePixelRatio, // scaleY
-			screenData.offset.x * window.devicePixelRatio, // translateX
-			screenData.offset.y * window.devicePixelRatio // translateY
+			screenData.zoom * devicePixelRatio,
+			0,0,
+			screenData.zoom * devicePixelRatio,
+			screenData.offset.x * devicePixelRatio,
+			screenData.offset.y * devicePixelRatio
 		);
 
 		clearCanvas(canvas, ctx, "white");
 
-		ctx.strokeStyle = "gray";
-		ctx.lineWidth = edgeThickness;
+		if (lastMousePosition !== null) {
+			ctx.strokeStyle = "gray";
+			ctx.lineWidth = edgeThickness;
 
-		if (lastMousePosition !== null){
 			if (state === State.DrawEdge && lastMouseDownNodeIndex !== -1) {
 				ctx.beginPath();
 				ctx.moveTo(nodes[lastMouseDownNodeIndex]!.position.x, nodes[lastMouseDownNodeIndex]!.position.y);
 				ctx.lineTo(lastMousePosition.x, lastMousePosition.y);
 				ctx.stroke();
 			}
-			else if (state === State.SplitEdge){
-				const splittedEdge = edges[lastMouseDownEdgeIndex];
-				const node1 = nodes[splittedEdge?.nodeIndex1!];
-				const node2 = nodes[splittedEdge?.nodeIndex2!];
-				ctx.beginPath();
-				ctx.moveTo(node1?.position.x!, node1?.position.y!);
-				ctx.lineTo(lastMousePosition.x!, lastMousePosition.y!);
-				ctx.lineTo(node2?.position.x!, node2?.position.y!);
-				ctx.stroke();
+
+			if (state === State.SplitEdge) {
+				const e = edges[lastMouseDownEdgeIndex];
+				if (e) {
+					const n1 = nodes[e.nodeIndex1], n2 = nodes[e.nodeIndex2];
+					if (n1 && n2) {
+						ctx.beginPath();
+						ctx.moveTo(n1.position.x, n1.position.y);
+						ctx.lineTo(lastMousePosition.x!, lastMousePosition.y!);
+						ctx.lineTo(n2.position.x, n2.position.y);
+						ctx.stroke();
+					}
+				}
 			}
 		}
-		const camLeft   = -screenData.offset.x / screenData.zoom;
-		const camTop    = -screenData.offset.y / screenData.zoom;
-		const camRight  = (canvas.width  - screenData.offset.x) / screenData.zoom;
-		const camBottom = (canvas.height - screenData.offset.y) / screenData.zoom;
 
-		for (let i = 0; i < edges.length; i++) {
-			if ((state === State.SplitEdge && i === lastMouseDownEdgeIndex) || !isEdgeVisible(edges[i]!, camLeft, camRight, camTop, camBottom))
-				continue;
-			let edge = edges[i]!;
-			const node1 = nodes[edge.nodeIndex1];
-			const node2 = nodes[edge.nodeIndex2];
-			if (node1 === undefined || node2 === undefined)
-				throw new Error("Edge has missing nodes.");
+		const camLeft	= -screenData.offset.x / screenData.zoom;
+		const camTop	= -screenData.offset.y / screenData.zoom;
+		const camRight	= (canvas.width  - screenData.offset.x) / screenData.zoom;
+		const camBottom	= (canvas.height - screenData.offset.y) / screenData.zoom;
 
-			if (edge.edgeType === EdgeType.Directional){
-				const edgeDir = node2.position.sub(node1.position).normalized;
-				const intPoint = node1.position.add(node2.position.sub(node1.position).add(node1.position.sub(node2.position).normalized.mul(node2.radius)));
-				const arrowMidPoint = intPoint.sub(edgeDir.mul(10));
-				const firstPoint = arrowMidPoint.rotatedAround(30, intPoint);
-				const secondPoint = arrowMidPoint.rotatedAround(-30, intPoint);
-				
-				ctx.fillStyle = selectedEdgeIndices.indexOf(i) >= 0 ? "blue" : "gray";
-				ctx.beginPath();
-				ctx.moveTo(intPoint.x, intPoint.y);
-				ctx.lineTo(firstPoint.x, firstPoint.y);
-				ctx.lineTo(secondPoint.x, secondPoint.y);
-				ctx.fill();
+		for (let i=0;i<edges.length;i++) {
+
+			const e = edges[i];
+			if (!e) continue;
+
+			const n1 = nodes[e.nodeIndex1];
+			const n2 = nodes[e.nodeIndex2];
+			if (!n1 || !n2) continue;
+
+			if (state === State.SplitEdge && i === lastMouseDownEdgeIndex) continue;
+			if (!isEdgeVisible(e, camLeft, camRight, camTop, camBottom)) continue;
+
+			if (e.edgeType === EdgeType.Directional) {
+				const v = n2.position.sub(n1.position);
+				const len = v.magnitude;
+
+				if (len > 0.001) {
+					const dir = v.div(len);
+					const tail = n2.position.sub(dir.mul(n2.radius));
+					const mid  = tail.sub(dir.mul(10));
+					const L = mid.rotatedAround( 30, tail);
+					const R = mid.rotatedAround(-30, tail);
+
+					ctx.fillStyle = (selectedEdgeIndices.indexOf(i) >= 0) ? "blue" : "gray";
+					ctx.beginPath();
+					ctx.moveTo(tail.x, tail.y);
+					ctx.lineTo(L.x, L.y);
+					ctx.lineTo(R.x, R.y);
+					ctx.fill();
+				}
 			}
 
-			ctx.strokeStyle = selectedEdgeIndices.indexOf(i) >= 0 ? "blue" : "gray";
+			ctx.strokeStyle = (selectedEdgeIndices.indexOf(i) >= 0) ? "blue" : "gray";
+			ctx.lineWidth = edgeThickness;
 			ctx.beginPath();
-			ctx.moveTo(node1.position.x, node1.position.y);
-			ctx.lineTo(node2.position.x, node2.position.y);
+			ctx.moveTo(n1.position.x, n1.position.y);
+			ctx.lineTo(n2.position.x, n2.position.y);
 			ctx.stroke();
 
-			// Draw edge weight
-			if (edge.weight !== null){
-				const edgeCenter = node1.position.add(node2.position).div(2);
-
+			if (e.weight !== null) {
+				const mid = n1.position.add(n2.position).div(2);
 				ctx.fillStyle = "white";
 				ctx.beginPath();
-				ctx.arc(edgeCenter.x, edgeCenter.y, edgeWeightEditRadius, 0, 360);
+				ctx.arc(mid.x, mid.y, edgeWeightEditRadius, 0, 360);
 				ctx.fill();
 
 				ctx.fillStyle = "blue";
 				ctx.font = "bold 15px sans-serif";
-				ctx.textBaseline = "middle";
 				ctx.textAlign = "center";
-				ctx.fillText(edge.weight!.toString(), edgeCenter.x, edgeCenter.y);
+				ctx.textBaseline = "middle";
+				ctx.fillText(e.weight!.toString(), mid.x, mid.y);
 			}
 		}
 
-		for (const edge of highlightedEdges) {
+		ctx.strokeStyle = "red";
+		ctx.lineWidth = edgeThickness * 2;
+
+		for (const ei of HE) {
+			const e = edges[ei];
+			if (!e) continue;
+			const n1 = nodes[e.nodeIndex1], n2 = nodes[e.nodeIndex2];
+			if (!n1 || !n2) continue;
+
+			ctx.beginPath();
+			ctx.moveTo(n1.position.x, n1.position.y);
+			ctx.lineTo(n2.position.x, n2.position.y);
+			ctx.stroke();
+		}
+
+		for (let i=0;i<edges.length;i++) {
+			if (AE.indexOf(i) < 0) continue;
+
+			const e = edges[i];
+			if (!e) continue;
+			const n1 = nodes[e.nodeIndex1], n2 = nodes[e.nodeIndex2];
+			if (!n1 || !n2) continue;
+
+			const v  = n2.position.sub(n1.position);
+			const len = v.magnitude;
+			if (len < 0.001) continue;
+
+			const dir = v.div(len);
+			const t = Math.max(0, Math.min(1, prog));
+			const end = n1.position.add(dir.mul(len * t));
+
 			ctx.strokeStyle = "red";
 			ctx.lineWidth = edgeThickness * 2;
 			ctx.beginPath();
-			ctx.moveTo(nodes[edge.nodeIndex1]!.position.x, nodes[edge.nodeIndex1]!.position.y);
-			ctx.lineTo(nodes[edge.nodeIndex2]!.position.x, nodes[edge.nodeIndex2]!.position.y);
+			ctx.moveTo(n1.position.x, n1.position.y);
+			ctx.lineTo(end.x, end.y);
 			ctx.stroke();
 		}
 
 		ctx.font = "bold 15px sans-serif";
-		ctx.textBaseline = "middle";
 		ctx.textAlign = "center";
+		ctx.textBaseline = "middle";
 
-		nodes.forEach(node => {
-			if (node.position.x + node.radius < camLeft ||
+		for (let i=0;i<nodes.length;i++) {
+			const node = nodes[i]!;
+
+			if (
+				node.position.x + node.radius < camLeft ||
 				node.position.x - node.radius > camRight ||
 				node.position.y + node.radius < camTop ||
-				node.position.y - node.radius > camBottom)
-				return;
+				node.position.y - node.radius > camBottom
+			) continue;
+
 			ctx.fillStyle = node.color;
 			ctx.beginPath();
 			ctx.arc(node.position.x, node.position.y, node.radius, 0, 360);
 			ctx.fill();
-			ctx.fillStyle = "white";
-			ctx.fillText(node.label, node.position.x, node.position.y);
-		});
 
-		if (state === State.DrawNode) {
-			if (lastMousePosition === null || lastMouseDownPosition === null)
-				throw new Error("lastMousePosition or lastMouseDownPosition cannot be null.");
-			let nodeRadius = lastMousePosition.sub(lastMouseDownPosition).magnitude;
+			let labelToDraw = node.label;
+			if (f && f.labels && f.labels[i] !== undefined)
+				labelToDraw = f.labels[i]!;
+
+			ctx.fillStyle = "white";
+			ctx.fillText(labelToDraw, node.position.x, node.position.y);
+		}
+
+		if (state===State.DrawNode && lastMousePosition && lastMouseDownPosition) {
+			const r = lastMousePosition.sub(lastMouseDownPosition).magnitude;
 			ctx.fillStyle = currentNodeColor;
 			ctx.beginPath();
-			ctx.arc(lastMouseDownPosition.x, lastMouseDownPosition.y, nodeRadiusCurve(nodeRadius), 0, 360);
+			ctx.arc(lastMouseDownPosition.x, lastMouseDownPosition.y, nodeRadiusCurve(r), 0, 360);
 			ctx.fill();
 		}
-		else if (state === State.SplitEdge){
-			if (lastMousePosition === null || lastMouseDownPosition === null)
-				throw new Error("lastMousePosition or lastMouseDownPosition cannot be null.");
 
+		if (state===State.SplitEdge && lastMousePosition) {
 			ctx.fillStyle = currentNodeColor;
 			ctx.beginPath();
 			ctx.arc(lastMousePosition.x, lastMousePosition.y, defaultNodeRadius, 0, 360);
 			ctx.fill();
 		}
 
-		ctx.lineWidth = 4;
 		ctx.strokeStyle = "gray";
+		ctx.lineWidth = 4;
 
-		selectedNodeIndices.forEach(nodeIndex => {
-			let selectedNode = nodes[nodeIndex]!;
+		for (const ni of selectedNodeIndices) {
+			const n = nodes[ni];
+			if (!n) continue;
+
 			ctx.beginPath();
-			ctx.arc(selectedNode.position.x, selectedNode.position.y, selectedNode.radius, 0, 360);
+			ctx.arc(n.position.x, n.position.y, n.radius, 0, 360);
 			ctx.stroke();
-		});
+		}
 
-		if (state === State.BoxSelect && lastMousePosition !== null && lastMouseDownPosition !== null) {
-			ctx.lineWidth = 1;
+		if (state===State.BoxSelect && lastMousePosition && lastMouseDownPosition) {
+			ctx.setLineDash([4,4]);
 			ctx.strokeStyle = "gray";
-			ctx.setLineDash([4, 4]);
-			ctx.strokeRect(lastMouseDownPosition.x, lastMouseDownPosition.y, lastMousePosition.x - lastMouseDownPosition.x, lastMousePosition.y - lastMouseDownPosition.y);
+			ctx.lineWidth = 1;
+			ctx.strokeRect(
+				lastMouseDownPosition.x,
+				lastMouseDownPosition.y,
+				lastMousePosition.x-lastMouseDownPosition.x,
+				lastMousePosition.y-lastMouseDownPosition.y
+			);
 		}
 
-		for (const index of highlightedNodeIndices) {
-			ctx.lineWidth = 4;
-			ctx.strokeStyle = "red";
-			ctx.setLineDash([]);
+		ctx.strokeStyle = "red";
+		ctx.lineWidth = 4;
+
+		for (const ni of HN) {
+			const n = nodes[ni];
+			if (!n) continue;
+
 			ctx.beginPath();
-			ctx.arc(nodes[index]!.position.x, nodes[index]!.position.y, nodes[index]!.radius, 0, 360);
+			ctx.arc(n.position.x, n.position.y, n.radius, 0, 360);
 			ctx.stroke();
 		}
-	}
-	finally {
-		ctx.restore();
-	}
 
-	//window.requestAnimationFrame(draw);
+	}
+	finally { ctx.restore(); }
 
 	lastDrawTimestamp = timeStamp;
 }

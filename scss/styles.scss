@@ -299,3 +299,72 @@ button:active {
 .drop-area.highlight {
   border-color: #007bff;
 }
+
+#timeline-bar {
+    bottom: 100;
+    left: 0;
+    width: 100%;
+    background: #222;
+    padding: 8px 12px;
+    box-sizing: border-box;
+    display: none;
+    flex-direction: column;
+    z-index: 9999;
+    font-family: system-ui, sans-serif;
+	gap:8px;
+	align-items:center;
+	margin-top:8px;
+}
+
+#timeline-controls {
+    display: flex;
+    gap: 8px;
+    justify-content: center;
+}
+
+#timeline-controls button {
+    padding: 6px 12px;
+    background: #444;
+    color: white;
+    border: none;
+    border-radius: 6px;
+    font-size: 16px;
+    cursor: pointer;
+}
+
+#timeline-controls button:hover {
+    background: #666;
+}
+
+#timeline-range {
+    appearance: none;
+    width: 100%;
+    height: 6px;
+    background: #666;
+    border-radius: 3px;
+    outline: none;
+    cursor: pointer;
+}
+
+#timeline-range::-webkit-slider-thumb {
+    appearance: none;
+    width: 14px;
+    height: 14px;
+    background: #fff;
+    border-radius: 50%;
+    cursor: grab;
+}
+
+#timeline-range::-moz-range-thumb {
+    width: 14px;
+    height: 14px;
+    background: #fff;
+    border-radius: 50%;
+    cursor: grab;
+}
+
+#timeline-controls{
+	width:100%;
+	display: flex;
+	align-items: center;
+}
