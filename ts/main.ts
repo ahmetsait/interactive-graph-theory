@@ -185,6 +185,16 @@ class Line {
 	}
 }
 
+//#region Extension implementations
+
+if (!Array.prototype.contains) {
+  Array.prototype.contains = function<T>(this: T[], element: T): boolean {
+    return this.indexOf(element) > -1;
+  };
+}
+
+//#endregion
+
 
 for (const dropdownButton of document.getElementsByClassName("dropdown-button")) {
 	dropdownButton.addEventListener("click", (event) => {
@@ -328,7 +338,7 @@ function handleDrop(e : DragEvent) {
   const acceptedMimeTypes = ['text/plain', 'application/json'];
   if (files && files[0])
   {
-	if (acceptedMimeTypes.indexOf(files[0].type) === -1) {
+	if (!acceptedMimeTypes.contains(files[0].type)) {
 		console.log(`Invalid MIME type: ${files[0].type}`);
 		return;
   	}
@@ -816,7 +826,7 @@ function updatePhysics() {
 
 	for(let i = 0; i < nodes.length; i++) {
 		let force = new Vector2();
-		if ((lastMouseDownNodeIndex === i || selectedNodeIndices.indexOf(i) >= 0) && state == State.MoveNode)
+		if ((lastMouseDownNodeIndex === i || selectedNodeIndices.contains(i)) && state == State.MoveNode)
 			continue;
 		const a = nodes[i]!;
 		
@@ -903,7 +913,7 @@ function mousedown(event: MouseEvent) {
 				}
 				else if (event.shiftKey) {
 					if (mouseDownEdgeIndex > -1){
-						if (selectedEdgeIndices.indexOf(mouseDownEdgeIndex) >= 0)
+						if (selectedEdgeIndices.contains(mouseDownEdgeIndex))
 							removeItem(selectedEdgeIndices, mouseDownEdgeIndex);
 						else{
 							selectedNodeIndices = [];
@@ -918,7 +928,7 @@ function mousedown(event: MouseEvent) {
 							getConnectedNodes(mouseDownNodeIndex).forEach((index) => {addItemUnique(selectedNodeIndices, index)});
 							state = State.TreeSelect;
 						}
-						else if (selectedNodeIndices.indexOf(mouseDownNodeIndex) === -1) {
+						else if (!selectedNodeIndices.contains(mouseDownNodeIndex)) {
 							addItemUnique(selectedNodeIndices, mouseDownNodeIndex);
 							state = State.ScanSelect;
 						}
@@ -930,7 +940,7 @@ function mousedown(event: MouseEvent) {
 				}
 				else if (event.ctrlKey) {
 					if (mouseDownNodeIndex !== -1) {
-						if (selectedNodeIndices.indexOf(mouseDownNodeIndex) === -1)
+						if (!selectedNodeIndices.contains(mouseDownNodeIndex))
 							selectedNodeIndices = [mouseDownNodeIndex];
 						state = State.MoveNode;
 					}
@@ -940,7 +950,7 @@ function mousedown(event: MouseEvent) {
 				}
 				else if (event.altKey) {
 					const treeIndices = getConnectedNodes(mouseDownNodeIndex);
-					if (selectedNodeIndices.indexOf(mouseDownNodeIndex) > -1){
+					if (selectedNodeIndices.contains(mouseDownNodeIndex)){
 						treeIndices.forEach((index) => {removeItem(selectedNodeIndices, index)});
 					}
 					else
@@ -1020,7 +1030,7 @@ function mousemove(event: MouseEvent) {
 
 		case State.MoveNode:
 			if (lastMouseDownNodeIndex !== -1) {
-				if (selectedNodeIndices.indexOf(lastMouseDownNodeIndex) !== -1)
+				if (selectedNodeIndices.contains(lastMouseDownNodeIndex))
 					moveNodes(movement, selectedNodeIndices);
 				else
 					moveNodes(movement, [lastMouseDownNodeIndex]);
@@ -1059,7 +1069,7 @@ function mouseup(event: MouseEvent) {
 
 	switch (state) {
 		case State.None:
-			if (selectedNodeIndices.indexOf(lastMouseDownNodeIndex) > -1){
+			if (selectedNodeIndices.contains(lastMouseDownNodeIndex)){
 				removeItem(selectedNodeIndices, lastMouseDownNodeIndex);
 			}
 			else if (lastMouseDownNodeIndex !== -1 && lastMouseDownEdgeIndex === -1  && lastMouseDownNodeIndex === mouseUpNodeIndex) {
@@ -1067,7 +1077,7 @@ function mouseup(event: MouseEvent) {
 				selectedEdgeIndices = [];
 				addItemUnique(selectedNodeIndices, mouseUpNodeIndex);
 			}else if (lastMouseDownEdgeIndex > -1 && lastMouseDownEdgeIndex === mouseUpEdgeIndex && !event.shiftKey){
-				if (selectedEdgeIndices.indexOf(lastMouseDownEdgeIndex) >= 0)
+				if (selectedEdgeIndices.contains(lastMouseDownEdgeIndex))
 					removeItem(selectedEdgeIndices, lastMouseDownEdgeIndex);
 				else{
 					selectedEdgeIndices = [];
@@ -1316,7 +1326,7 @@ function touchstart(event: TouchEvent) {
 							if (it.done || !it.value) return;
 							const touchInfo = it.value as TouchInfo;
 							if (touchInfo.touchStartNodeIndex !== -1) {
-								if (selectedNodeIndices.indexOf(touchInfo.touchStartNodeIndex) === -1)
+								if (!selectedNodeIndices.contains(touchInfo.touchStartNodeIndex))
 									selectedNodeIndices = [touchInfo.touchStartNodeIndex];
 								state = State.MoveNode;
 							}
@@ -1399,7 +1409,7 @@ function touchmove(event: TouchEvent) {
 				break;
 
 			case State.MoveNode:
-				if (selectedNodeIndices.indexOf(lastSingleTouchStartNodeIndex) !== -1)
+				if (selectedNodeIndices.contains(lastSingleTouchStartNodeIndex))
 					moveNodes(touchInfo.touchDelta.div(screenData.zoom), selectedNodeIndices);
 				else
 					moveNodes(touchInfo.touchDelta.div(screenData.zoom), [lastSingleTouchStartNodeIndex]);
@@ -1704,7 +1714,7 @@ function draw(timeStamp: number) {
 					const L = mid.rotatedAround( 30, tail);
 					const R = mid.rotatedAround(-30, tail);
 
-					ctx.fillStyle = (selectedEdgeIndices.indexOf(i) >= 0) ? "blue" : "gray";
+					ctx.fillStyle = (selectedEdgeIndices.contains(i)) ? "blue" : "gray";
 					ctx.beginPath();
 					ctx.moveTo(tail.x, tail.y);
 					ctx.lineTo(L.x, L.y);
@@ -1713,7 +1723,7 @@ function draw(timeStamp: number) {
 				}
 			}
 
-			ctx.strokeStyle = (selectedEdgeIndices.indexOf(i) >= 0) ? "blue" : "gray";
+			ctx.strokeStyle = (selectedEdgeIndices.contains(i)) ? "blue" : "gray";
 			ctx.lineWidth = edgeThickness;
 			ctx.beginPath();
 			ctx.moveTo(n1.position.x, n1.position.y);
@@ -1751,7 +1761,7 @@ function draw(timeStamp: number) {
 		}
 
 		for (let i=0;i<edges.length;i++) {
-			if (AE.indexOf(i) < 0) continue;
+			if (!AE.contains(i)) continue;
 
 			const e = edges[i];
 			if (!e) continue;
