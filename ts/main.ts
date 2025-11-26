@@ -128,6 +128,7 @@ enum State {
 	BoxSelect,
 	ScanSelect,
 	ScanDeselect,
+	TreeSelect,
 	Pan,
 	Zoom,
 	TouchCameraControl, // TODO: Mixed pan+zoom+rotate
@@ -913,7 +914,11 @@ function mousedown(event: MouseEvent) {
 						state = State.BoxSelect;
 					}
 					else {
-						if (selectedNodeIndices.indexOf(mouseDownNodeIndex) === -1) {
+						if (event.altKey){
+							getConnectedNodes(mouseDownNodeIndex).forEach((index) => {addItemUnique(selectedNodeIndices, index)});
+							state = State.TreeSelect;
+						}
+						else if (selectedNodeIndices.indexOf(mouseDownNodeIndex) === -1) {
 							addItemUnique(selectedNodeIndices, mouseDownNodeIndex);
 							state = State.ScanSelect;
 						}
@@ -934,7 +939,13 @@ function mousedown(event: MouseEvent) {
 					}
 				}
 				else if (event.altKey) {
-					selectedNodeIndices = getConnectedNodes(mouseDownNodeIndex);
+					const treeIndices = getConnectedNodes(mouseDownNodeIndex);
+					if (selectedNodeIndices.indexOf(mouseDownNodeIndex) > -1){
+						treeIndices.forEach((index) => {removeItem(selectedNodeIndices, index)});
+					}
+					else
+						selectedNodeIndices = treeIndices;
+					state = State.TreeSelect;
 				}
 				else {
 					if (mouseDownNodeIndex === -1 && mouseDownEdgeIndex === -1) {
@@ -1115,10 +1126,7 @@ function mouseup(event: MouseEvent) {
 			const splittedEdge = edges[lastMouseDownEdgeIndex];
 			edges.push(new GraphEdge(splittedEdge!.nodeIndex1, newNodeIndex, splittedEdge!.edgeType, splittedEdge!.weight));
 			edges.push(new GraphEdge(newNodeIndex, splittedEdge!.nodeIndex2, splittedEdge!.edgeType, splittedEdge!.weight));
-
 			removeItem(edges, splittedEdge);
-
-			// Edge leri pushla
 			saveLastState();
 			break;
 		case State.MoveNode:
