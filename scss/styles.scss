@@ -208,6 +208,12 @@ button:active {
 	white-space: nowrap;
 }
 
+.toolbar button:disabled{
+    background: #eee !important;
+    color: #777 !important;
+    border-color: #666 !important;
+}
+
 .hidden {
 	display: none;
 }

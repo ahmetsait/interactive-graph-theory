@@ -98,8 +98,10 @@
 		-->
 		<button onclick="selectAll()"><i class="fa-regular fa-object-group"></i><span> Select All</span></button>
 		<button onclick="deleteSelected()"><i class="fa-solid fa-xmark"></i><span> Delete</span></button>
-		<button onclick="resetAll()"><i class="fa-solid fa-eraser"></i><span> Clear</span></button>
+		<button onclick="clearGraph()"><i class="fa-solid fa-eraser"></i><span> Clear</span></button>
 		<button onclick="togglePhysics()"><i class="fa-solid fa-magnet"></i><span> Toggle Physics</span></button>
+		<button id="undo" onclick="undo()"><i class="fa-solid fa-arrow-rotate-left"></i><span> Undo</span></button>
+		<button id="redo" onclick="redo()"><i class="fa-solid fa-rotate-right"></i><span> Redo</span></button>
 	</div>
 	
 	<div id="help-dialog" class="modal-layer hidden">
