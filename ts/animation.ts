@@ -97,12 +97,12 @@ function animTick() {
 
 function stepforward() {
 	pausePlayback();
-	seekTo(timeline.playhead + 1);
+	seekTo(Math.floor(timeline.playhead) + 1);
 }
 
 function stepback() {
 	pausePlayback();
-	seekTo(timeline.playhead - 1);
+	seekTo(Math.ceil(timeline.playhead) - 1);
 }
 
 function speedChanged(event: Event) {
