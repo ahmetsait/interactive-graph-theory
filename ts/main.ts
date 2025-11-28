@@ -662,10 +662,15 @@ function clearGraph(){
 }
 
 function selectAll() {
-	if (selectedNodeIndices.length < nodes.length)
+	selectedEdgeIndices = [];
+	if (selectedNodeIndices.length < nodes.length){
 		selectedNodeIndices = [...nodes.keys()];
-	else
+		pushSelection([...selectedNodeIndices], [], [], [...selectedEdgeIndices]);
+	}
+	else{
+		pushSelection([], [...selectedNodeIndices], [], [...selectedEdgeIndices]);
 		selectedNodeIndices = [];
+	}
 	draw(window.performance.now());
 }
 
@@ -1661,6 +1666,7 @@ function touchstart(event: TouchEvent) {
 						doubleTap = true;
 						tryVibrate([30, 30, 30]);
 						if (touchInfo.touchStartNodeIndex !== -1) {
+							pushNodeDelete([touchInfo.touchStartNodeIndex], [nodes[touchInfo.touchStartNodeIndex]!], getEdgeListCopy(edges))
 							deleteNode(touchInfo.touchStartNodeIndex);
 							state = State.DeleteNode;
 							saveLastState();
@@ -1674,8 +1680,10 @@ function touchstart(event: TouchEvent) {
 							if (it.done || !it.value) return;
 							const touchInfo = it.value as TouchInfo;
 							if (touchInfo.touchStartNodeIndex !== -1) {
-								if (!selectedNodeIndices.contains(touchInfo.touchStartNodeIndex))
+								if (!selectedNodeIndices.contains(touchInfo.touchStartNodeIndex)){
+									pushSelection([touchInfo.touchStartNodeIndex], [...selectedNodeIndices], [], [...selectedEdgeIndices]);
 									selectedNodeIndices = [touchInfo.touchStartNodeIndex];
+								}
 								state = State.MoveNode;
 							}
 							else
@@ -1766,6 +1774,7 @@ function touchmove(event: TouchEvent) {
 
 			case State.DeleteNode:
 				if (touchInfo.touchOnNodeIndex !== -1){
+					pushNodeDelete([touchInfo.touchOnNodeIndex], [nodes[touchInfo.touchOnNodeIndex]!], getEdgeListCopy(edges));
 					deleteNode(touchInfo.touchOnNodeIndex);
 					saveLastState();
 				}
@@ -1831,29 +1840,36 @@ function touchend(event: TouchEvent) {
 			// @ts-expect-error
 			case State.None:
 				if (touchInfo.touchStartNodeIndex !== -1) {
-					selectedEdgeIndices = [];
-					if (!removeItem(selectedNodeIndices, touchInfo.touchStartNodeIndex))
+					if (!removeItem(selectedNodeIndices, touchInfo.touchStartNodeIndex)){
+						pushSelection([touchInfo.touchStartNodeIndex], [], [], [...selectedEdgeIndices]);
 						addItemUnique(selectedNodeIndices, touchInfo.touchStartNodeIndex);
+					}
+					else
+						pushSelection([], [touchInfo.touchStartNodeIndex], [], [...selectedEdgeIndices]);
+					selectedEdgeIndices = [];
 					break;
 				}
 				else if (touchInfo.touchStartEdgeIndex !== -1){
-					selectedNodeIndices = [];
-
 					const pos = touchInfo.touchPosition;
 					const edgeIdx = getEdgeIndexAtPosition(edges, pos);
 					if (edgeIdx !== -1) {
 						const edge = edges[edgeIdx]!;
 						const midpoint = nodes[edge.nodeIndex1]!.position
-							.add(nodes[edge.nodeIndex2]!.position)
-							.div(2);
-
+						.add(nodes[edge.nodeIndex2]!.position)
+						.div(2);
+						
 						if (pos.sub(midpoint).magnitudeSqr < edgeWeightEditRadius ** 2) {
 							openEdgeWeightEditor(edgeIdx);
 							return;
 						}
 					}
-					if (!removeItem(selectedEdgeIndices, touchInfo.touchStartEdgeIndex))
+					if (!removeItem(selectedEdgeIndices, touchInfo.touchStartEdgeIndex)){
+						pushSelection([], [...selectedNodeIndices], [touchInfo.touchStartEdgeIndex], []);
 						addItemUnique(selectedEdgeIndices, touchInfo.touchStartEdgeIndex);
+					}
+					else
+						pushSelection([], [...selectedNodeIndices], [], [touchInfo.touchStartEdgeIndex]);
+					selectedNodeIndices = [];
 					break;
 				}
 				currentNodeColor = randomHslColor();
@@ -1862,21 +1878,23 @@ function touchend(event: TouchEvent) {
 				if (lastSingleTouchStartPosition === null)
 					throw new Error("State machine bug.");
 				let nodeRadius = touchInfo.touchPosition.sub(lastSingleTouchStartPosition).magnitude;
-				nodes.push(
+				const index = nodes.push(
 					new GraphNode(
 						lastSingleTouchStartPosition,
 						nodeRadiusCurve(nodeRadius),
 						currentNodeColor,
 						"",
 					)
-				);
+				) - 1;
+				pushNodeAdd(nodes[index]!);
 				saveLastState();
 				break;
 
 			case State.DrawEdge:
 				if (lastSingleTouchStartNodeIndex !== -1 && touchInfo.touchOnNodeIndex !== -1) {
 					if (!edges.some((edge) => edge.nodeIndex1 === lastSingleTouchStartNodeIndex && edge.nodeIndex2 === touchInfo.touchOnNodeIndex)){
-						edges.push(new GraphEdge(lastSingleTouchStartNodeIndex, touchInfo.touchOnNodeIndex, EdgeType.Directional, 1));
+						let index = edges.push(new GraphEdge(lastSingleTouchStartNodeIndex, touchInfo.touchOnNodeIndex, EdgeType.Directional, 1)) - 1;
+						pushEdgeAdd(edges[index]!);
 						saveLastState();
 					}
 					else{
@@ -1886,6 +1904,7 @@ function touchend(event: TouchEvent) {
 							const index = edges.indexOf(edge);
 							if (edge.edgeType === EdgeType.Directional)
 								edges[index]!.edgeType = EdgeType.Bidirectional
+							pushEdgeUpdate(index, GraphEdge.copyFromEdge(edge), GraphEdge.copyFromEdge(edges[index]!));
 							saveLastState();
 						}
 					}
@@ -1900,8 +1919,9 @@ function touchend(event: TouchEvent) {
 						randomHslColor(),
 						"",
 					)
-					nodes.push(newNode);
-					edges.push(new GraphEdge(lastSingleTouchStartNodeIndex, nodes.indexOf(newNode), EdgeType.Directional, 1));
+					let nodeIndex = nodes.push(newNode) - 1;
+					let index = edges.push(new GraphEdge(lastSingleTouchStartNodeIndex, nodeIndex, EdgeType.Directional, 1)) - 1;
+					pushEdgeDrop(edges[index]!, newNode);
 					saveLastState();
 				}
 				break;
@@ -1917,8 +1937,9 @@ function touchend(event: TouchEvent) {
 
 				const newNodeIndex = nodes.push(newNode) - 1;
 				const splittedEdge = edges[touchInfo.touchStartEdgeIndex];
-				edges.push(new GraphEdge(splittedEdge!.nodeIndex1, newNodeIndex, splittedEdge!.edgeType, splittedEdge!.weight));
-				edges.push(new GraphEdge(newNodeIndex, splittedEdge!.nodeIndex2, splittedEdge!.edgeType, splittedEdge!.weight));
+				const i1 = edges.push(new GraphEdge(splittedEdge!.nodeIndex1, newNodeIndex, splittedEdge!.edgeType, splittedEdge!.weight)) - 1;
+				const i2 = edges.push(new GraphEdge(newNodeIndex, splittedEdge!.nodeIndex2, splittedEdge!.edgeType, splittedEdge!.weight)) - 1;
+				pushEdgeSplit(GraphEdge.copyFromEdge(splittedEdge!), newNode, edges[i1]!, edges[i2]!);
 
 				removeItem(edges, splittedEdge);
 				saveLastState();
@@ -1933,7 +1954,17 @@ function touchend(event: TouchEvent) {
 					bottom: Math.max(lastSingleTouchStartPosition.y, touchInfo.touchPosition.y),
 				};
 				let rect = new DOMRect(box.left, box.top, box.right - box.left, box.top - box.bottom);
+				let indices: number[] = [];
+				for(let i of getNodeIndicesInRect(rect)){
+					if (addItemUnique(selectedNodeIndices, i))
+						indices.push(i);
+				}
 				getNodeIndicesInRect(rect).forEach(nodeIndex => addItemUnique(selectedNodeIndices, nodeIndex));
+				pushSelection([...indices], [], [], [...selectedEdgeIndices]);
+				selectedEdgeIndices = [];
+				break;
+			case State.MoveNode:
+				pushNodeMove(selectedNodeIndices, touchInfo.touchPosition.sub(touchInfo.touchStartPosition));
 				break;
 		}
 	}
@@ -1945,11 +1976,13 @@ function touchend(event: TouchEvent) {
 	}
 	else if (touchInfos.size === 1){
 		if (lastSingleTouchStartNodeIndex !== -1){
-			selectedNodeIndices = getConnectedNodes(lastSingleTouchStartNodeIndex);
+			const indices = getConnectedNodes(lastSingleTouchStartNodeIndex);
+			pushSelection([...indices], [], [], [...selectedEdgeIndices]);
+			selectedNodeIndices = indices;
+			selectedEdgeIndices = [];
 		}
 	}
 	else if (touchInfos.size === 2) {
-		
 		clearTimeout(touchHoldTimer);
 		touchHoldTimer = undefined;
 		state = State.Pan;
