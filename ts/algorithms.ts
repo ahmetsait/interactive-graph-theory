@@ -34,117 +34,84 @@ function getEdgeWeight(a: number, b: number): number {
 }
 
 async function dijkstra() {
-    toggleTimelineVisibility(true);
-    resetTimeline();
+	toggleTimelineVisibility(true);
+	resetTimeline();
+	highlightedNodeIndices = [];
+	highlightedEdgeIndices = [];
 
-    highlightedNodeIndices = [];
-    highlightedEdgeIndices = [];
+	if (selectedNodeIDs.length !== 1) {
+		alert("You need to select one node.");
+		return;
+	}
 
-    if (selectedNodeIDs.length !== 1) {
-        alert("You need to select one node.");
-        return;
-    }
+	const start = selectedNodeIDs[0]!;
+	const visited = new Set<number>();
+	const connections = gatherConnections();
 
-    const start = selectedNodeIDs[0]!;
-    const visited = new Set<number>();
-    const connections = gatherConnections();
+	const distances = new Map<number, number>();
+	for (const [id] of nodes) distances.set(id, Infinity);
 
-    const distances = new Map<number, number>();
-    for (const [id] of nodes) distances.set(id, Infinity);
+	function makeLabelSnapshot(): { [id: number]: string } {
+		const out: { [id: number]: string } = {};
+		for (const [id, d] of distances) out[id] = d === Infinity ? "∞" : d.toString();
+		return out;
+	}
 
-    function makeLabelSnapshot(): { [id: number]: string } {
-        const out: { [id: number]: string } = {};
-        for (const [id, d] of distances)
-            out[id] = d === Infinity ? "∞" : d.toString();
-        return out;
-    }
+	distances.set(start, 0);
 
-    distances.set(start, 0);
-    recordFrame(new AnimFrame(
-        [start],
-        [],
-        [],
-        [start],
-        makeLabelSnapshot()
-    ));
-    visited.add(start);
+	recordFrame(new AnimFrame([], [], [], [start], makeLabelSnapshot()));
+	highlightedNodeIndices.push(start);
 
-    while (true) {
-        let best = Infinity;
-        let u: number | null = null;
+	while (true) {
+		let best = Infinity;
+		let u: number | null = null;
 
-        for (const [id, d] of distances) {
-            if (!visited.has(id) && d < best) {
-                best = d;
-                u = id;
-            }
-        }
+		for (const [id, d] of distances) {
+			if (!visited.has(id) && d < best) {
+				best = d;
+				u = id;
+			}
+		}
 
-        if (u === null) break;
+		if (u === null) break;
 
-        visited.add(u);
+		visited.add(u);
 
-        const animatedNodes: number[] = [];
-        if (!highlightedNodeIndices.contains(u)) {
-            highlightedNodeIndices.push(u);
-            animatedNodes.push(u);
-        }
+		if (addItemUnique(highlightedNodeIndices, u))
+			recordFrame(new AnimFrame([...highlightedNodeIndices], [...highlightedEdgeIndices], [], [], makeLabelSnapshot()));
 
-        recordFrame(new AnimFrame(
-            [...highlightedNodeIndices],
-            [...highlightedEdgeIndices],
-            animatedNodes,
-            [],
-            makeLabelSnapshot()
-        ));
+		let set = connections.get(u)!;
+		if (!set) continue;
+		for (const v of set) {
+			const edge = edges.find(e =>
+				(e!.node1id === u && e!.node2id === v) ||
+				(e!.node2id === u && e!.node1id === v)
+			);
+			if (!edge) continue;
 
-        for (const v of connections.get(u)!) {
-            const edge = edges.find(e =>
-                (e!.node1id === u && e!.node2id === v) ||
-                (e!.node2id === u && e!.node1id === v)
-            );
-            if (!edge) continue;
+			recordFrame(new AnimFrame([...highlightedNodeIndices], [...highlightedEdgeIndices], [edge.id], [], makeLabelSnapshot()));
 
-            const animatedEdges: number[] = [];
-            if (!highlightedEdgeIndices.contains(edge.id)) {
-                animatedEdges.push(edge.id);
-            }
+			highlightedEdgeIndices.push(edge.id);
 
-            const old = distances.get(v)!;
-            const cand = distances.get(u)! + getEdgeWeight(u, v);
+			const old = distances.get(v)!;
+			const cand = distances.get(u)! + getEdgeWeight(u, v);
 
-            if (cand < old) {
-                distances.set(v, cand);
-            }
+			if (cand < old) distances.set(v, cand);
 
-            const animatedNodesNext: number[] = [];
-            if (!highlightedNodeIndices.contains(v)) {
-                highlightedNodeIndices.push(v);
-                animatedNodesNext.push(v);
-            }
+			if (!visited.has(v)) {
+				recordFrame(new AnimFrame([...highlightedNodeIndices], [...highlightedEdgeIndices], [], [v], makeLabelSnapshot()));
+				addItemUnique(highlightedNodeIndices, v);
+			}
+		}
+	}
+	recordFrame(new AnimFrame([...highlightedNodeIndices], [...highlightedEdgeIndices], [], [], makeLabelSnapshot()));
+	for (const [id, d] of distances) nodes.get(id)!.label = d === Infinity ? "∞" : d.toString();
 
-            recordFrame(new AnimFrame(
-                [...highlightedNodeIndices],
-                [...highlightedEdgeIndices],
-                animatedEdges,
-                animatedNodesNext,
-                makeLabelSnapshot()
-            ));
-
-            if (!highlightedEdgeIndices.contains(edge.id)) {
-                highlightedEdgeIndices.push(edge.id);
-            }
-        }
-    }
-
-    for (const [id, d] of distances) {
-        nodes.get(id)!.label = d === Infinity ? "∞" : d.toString();
-    }
-
-    highlightedNodeIndices = [];
-    highlightedEdgeIndices = [];
-    draw(performance.now());
+	highlightedNodeIndices = [];
+	highlightedEdgeIndices = [];
+	draw(performance.now());
 }
+
 
 async function BFS(){
 	toggleTimelineVisibility(true);
@@ -169,9 +136,11 @@ async function BFS(){
 
 	while (queue.length > 0){
 		let currentNodeIndex = queue.shift() as number;
-		let added = addItemUnique(highlightedNodeIndices, currentNodeIndex);
-		if (added)
-			recordFrame(new AnimFrame([...highlightedNodeIndices], [...highlightedEdgeIndices], []));
+		let added = !highlightedEdgeIndices.contains(currentNodeIndex);
+		if (added){
+			recordFrame(new AnimFrame([...highlightedNodeIndices], [...highlightedEdgeIndices], [], [currentNodeIndex]));
+			addItemUnique(highlightedNodeIndices, currentNodeIndex)
+		}
 		for (const nodeIndex of connections.get(currentNodeIndex) ?? new Set<number>()) {
 			if (!visited.has(nodeIndex)){
 				let edgeIndex = edges.find(e =>
@@ -182,9 +151,11 @@ async function BFS(){
 					recordFrame(new AnimFrame([...highlightedNodeIndices], [...highlightedEdgeIndices], [edgeIndex]));
 					highlightedEdgeIndices.push(edgeIndex);
 				}
-				let added = addItemUnique(highlightedNodeIndices, nodeIndex);
-				if (added) 
-					recordFrame(new AnimFrame([...highlightedNodeIndices], [...highlightedEdgeIndices], []));
+				let added = !highlightedEdgeIndices.contains(nodeIndex);
+				if (added){
+					recordFrame(new AnimFrame([...highlightedNodeIndices], [...highlightedEdgeIndices], [], [nodeIndex]));
+					addItemUnique(highlightedNodeIndices, nodeIndex);
+				}
 				queue.push(nodeIndex);
 				visited.add(nodeIndex);
 			}
@@ -232,21 +203,25 @@ async function DFS() {
 					new AnimFrame(
 						[...highlightedNodeIndices],
 						[...highlightedEdgeIndices],
-						[edgeIndex]
+						[edgeIndex],
+						[]
 					)
 				);
 				highlightedEdgeIndices.push(edgeIndex);
 			}
 		}
 
-		if (addItemUnique(highlightedNodeIndices, current)) {
+		let added = !highlightedNodeIndices.contains(current);
+		if (added) {
 			recordFrame(
 				new AnimFrame(
 					[...highlightedNodeIndices],
 					[...highlightedEdgeIndices],
-					[]
+					[],
+					[current]
 				)
 			);
+			addItemUnique(highlightedNodeIndices, current);
 		}
 
 		visited.add(current);
@@ -260,6 +235,14 @@ async function DFS() {
 			}
 		}
 	}
+	recordFrame(
+				new AnimFrame(
+					[...highlightedNodeIndices],
+					[...highlightedEdgeIndices],
+					[],
+					[]
+				)
+			);
 
 	highlightedNodeIndices = [];
 	highlightedEdgeIndices = [];

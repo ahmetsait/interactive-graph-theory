@@ -102,6 +102,8 @@
 		<button onclick="togglePhysics()"><i class="fa-solid fa-magnet"></i><span> Toggle Physics</span></button>
 		<button id="undo" onclick="undo()"><i class="fa-solid fa-arrow-rotate-left"></i><span> Undo</span></button>
 		<button id="redo" onclick="redo()"><i class="fa-solid fa-rotate-right"></i><span> Redo</span></button>
+		<button onclick="openPanel(Panel.HistoryPanel)"><i class="fa-solid fa-clock-rotate-left"></i><span> History</span></button>
+		<button onclick="openPanel(Panel.EditPanel)"><i class="fa-solid fa-pen-to-square"></i><span> Edit</span></button>
 	</div>
 	
 	<div id="help-dialog" class="modal-layer hidden">
@@ -177,6 +179,24 @@
 	</div>
 	
 	<canvas id="canvas"></canvas>
+
+	<div id="sidePanel" class="closed">
+		<div id="panelTabs">
+			<button onclick="openPanel(Panel.HistoryPanel);" id="tabHistory" class="active">History</button>
+			<button onclick="openPanel(Panel.EditPanel);" id="tabEdit">Edit</button>
+			<button id="panelClose">✕</button>
+		</div>
+
+		<div id="panelContent">
+			<div id="historyContent">
+				<div id="historyPanel"></div>
+			</div>
+
+			<div id="editContent" style="display:none;">
+				<p>EditTab</p>
+			</div>
+		</div>
+	</div>
 	
 	<div id="statusbar" class="container statusbar"></div>
 	<div id="timeline-bar">

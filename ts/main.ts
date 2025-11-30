@@ -1026,6 +1026,24 @@ function redo() {
 	draw(performance.now());
 }
 
+function undoToIndex(index: number){
+	if (index >= undoStack.length)
+		return;
+
+	while (undoStack.length > index){
+		undo();
+	}
+}
+
+function redoToIndex(index: number){
+	if (index >= redoStack.length)
+		return;
+
+	while (redoStack.length > index){
+		redo();
+	}
+}
+
 function applyDelta(d: Delta) {
 	switch (d.type) {
 		case DeltaType.NodeAdd:
@@ -1191,7 +1209,20 @@ function pushClear(oldgraph: Graph, newGraph: Graph, oldSelectedNodeIDs: number[
 
 //#region Undo/Redo History
 
+enum Panel{
+	EditPanel,
+	HistoryPanel
+}
+
 const historyPanel = document.getElementById("historyPanel")!;
+const contentPanel = document.getElementById("panelContent")!;
+const sidePanel = document.getElementById("sidePanel")!;
+const panelClose = document.getElementById("panelClose")!;
+const tabHistory = document.getElementById("tabHistory")!;
+const tabOther = document.getElementById("tabEdit")!;
+const historyContent = document.getElementById("historyContent")!;
+const otherContent = document.getElementById("editContent")!;
+
 let undoStackStrings: string[] = [];
 let redoStackStrings: string[] = [];
 
@@ -1210,10 +1241,13 @@ function pushRedoDescription(s: string) {
 function updateHistoryPanel() {
     let html = '';
     for (let i = 0; i < undoStackStrings.length; i++)
-        html += `<div class="item">${undoStackStrings[i]}</div>`;
+        html += `<button onclick="undoToIndex(`+ i +`)" class="item">${undoStackStrings[i]}</button>`;
     for (let i = redoStackStrings.length - 1; i >= 0; i--)
-        html += `<div class="redoItem">${redoStackStrings[i]}</div>`;
+        html += `<button onclick="redoToIndex(`+ i +`)" class="redoItem">${redoStackStrings[i]}</button>`;
     historyPanel.innerHTML = html;
+	queueMicrotask(() => {
+        contentPanel.scrollTop = contentPanel.scrollHeight;
+    });
 }
 
 function deltaToString(d: Delta): string {
@@ -1255,6 +1289,28 @@ function deltaToString(d: Delta): string {
             return "Unknown action";
     }
 }
+
+function openPanel(panel: Panel){
+	sidePanel.classList.add("open");
+	switch(panel){
+		case Panel.EditPanel:
+			tabOther.classList.add("active");
+			tabHistory.classList.remove("active");
+			historyContent.style.display = "none";
+			otherContent.style.display = "block";
+			break;
+		case Panel.HistoryPanel:
+			tabHistory.classList.add("active");
+			tabOther.classList.remove("active");
+			historyContent.style.display = "block";
+			otherContent.style.display = "none";
+			break;
+	}
+}
+
+panelClose.onclick = () => {
+    sidePanel.classList.remove("open");
+};
 
 //#endregion
 
