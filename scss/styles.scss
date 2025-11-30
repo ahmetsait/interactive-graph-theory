@@ -424,6 +424,14 @@ button:active {
     padding: 10px;
 }
 
+#editContent input,
+#editContent select,
+#editContent button {
+	margin-top: 5px;
+	color: black;
+	width: 100%;
+}
+
 #historyPanel .item {
     padding: 5px;
     background: #444;
@@ -438,17 +446,4 @@ button:active {
     margin-bottom: 4px;
     border-radius: 4px;
 	width: 100%;
-}
-
-.floatingBtn {
-    position: fixed;
-    right: 10px;
-    bottom: 10px;
-    padding: 12px 20px;
-    border-radius: 8px;
-    background: #444;
-    color: white;
-    border: none;
-    cursor: pointer;
-    z-index: 9999;
 }

@@ -889,63 +889,6 @@ function tryVibrate(pattern : number[] | number){
 	}
 }
 
-function openEdgeWeightEditor(edgeID: number) {
-	const edge = edges.get(edgeID)!;
-	const node1 = nodes.get(edge.node1id)!.position;
-	const node2 = nodes.get(edge.node2id)!.position;
-	const midPoint = node1.add(node2).div(2);
-	const midScreen = midPoint.mul(screenData.zoom).add(screenData.offset);
-
-	const rect = canvas.getBoundingClientRect();
-	const left = rect.left + midScreen.x;
-	const top  = rect.top  + midScreen.y;
-
-	if (edgeEditorEl)
-		edgeEditorEl.remove();
-
-	const input = document.createElement("input");
-	edgeEditorEl = input;
-	input.type = "number";
-	input.step = "any";
-	input.value = String(edge.weight ?? 1);
-	Object.assign(input.style, {
-		position: "fixed",
-		left: `${left - 30}px`,
-		top:  `${top  - 14}px`,
-		width: "60px",
-		height: "28px",
-		padding: "2px 6px",
-		font: "14px/20px system-ui, sans-serif",
-		textAlign: "center",
-		border: "1px solid #888",
-		borderRadius: "6px",
-		background: "#fff",
-		zIndex: "9999",
-	} as CSSStyleDeclaration);
-
-	document.body.appendChild(input);
-	input.focus();
-	input.select();
-
-	const commit = (ok: boolean) => {
-		if (ok) {
-			const v = parseFloat(input.value);
-			if (!Number.isNaN(v)) {
-				edge.weight = v;
-				saveLastState?.();
-				draw(performance.now());
-			}
-		}
-		input.remove();
-		if (edgeEditorEl === input) edgeEditorEl = null;
-	};
-
-	input.addEventListener("keydown", (ev) => {
-		if (ev.key === "Enter") commit(true);
-		else if (ev.key === "Escape") commit(false);
-	});
-	input.addEventListener("blur", () => commit(true));
-}
 //#endregion
 
 //#region Undo/Redo
@@ -1219,9 +1162,9 @@ const contentPanel = document.getElementById("panelContent")!;
 const sidePanel = document.getElementById("sidePanel")!;
 const panelClose = document.getElementById("panelClose")!;
 const tabHistory = document.getElementById("tabHistory")!;
-const tabOther = document.getElementById("tabEdit")!;
+const tabEdit = document.getElementById("tabEdit")!;
 const historyContent = document.getElementById("historyContent")!;
-const otherContent = document.getElementById("editContent")!;
+const editContent = document.getElementById("editContent")!;
 
 let undoStackStrings: string[] = [];
 let redoStackStrings: string[] = [];
@@ -1294,16 +1237,16 @@ function openPanel(panel: Panel){
 	sidePanel.classList.add("open");
 	switch(panel){
 		case Panel.EditPanel:
-			tabOther.classList.add("active");
+			tabEdit.classList.add("active");
 			tabHistory.classList.remove("active");
 			historyContent.style.display = "none";
-			otherContent.style.display = "block";
+			editContent.style.display = "block";
 			break;
 		case Panel.HistoryPanel:
 			tabHistory.classList.add("active");
-			tabOther.classList.remove("active");
+			tabEdit.classList.remove("active");
 			historyContent.style.display = "block";
-			otherContent.style.display = "none";
+			editContent.style.display = "none";
 			break;
 	}
 }
@@ -1313,6 +1256,120 @@ panelClose.onclick = () => {
 };
 
 //#endregion
+
+//#endregion
+
+//#region Edit Tooltip
+
+let editingNode = -1;
+let editingEdge = -1;
+let isEditModalClosing = false;
+
+function worldToScreen(pos: Vector2): Vector2 {
+    return new Vector2(
+        pos.x * screenData.zoom + screenData.offset.x,
+        pos.y * screenData.zoom + screenData.offset.y
+    );
+}
+
+function rgbToHex(c: string): string {
+    if (c.startsWith("#")) return c;
+    return "#ffffff";
+}
+
+function updateNodeProperties(nodeIndex: number) {
+    editingNode = nodeIndex;
+    editingEdge = -1;
+
+    const node = nodes.get(nodeIndex)!;
+    const html = `
+        <label>Label</label>
+        <input id="prop-label" value="${node.label}">
+
+        <label>Color</label>
+        <input id="prop-color" type="color" value="${rgbToHex(node.color)}">
+
+        <label>Radius</label>
+        <input id="prop-radius" type="number" min="5" max="200" value="${node.radius}">
+
+        <button id="prop-save">Save</button>
+        <!--<button id="prop-del">Delete</button>-->
+    `;
+    editContent.innerHTML = html;
+
+    setTimeout(() => {
+        (document.getElementById("prop-save") as HTMLButtonElement).onclick = () => {
+
+			const oldNode = GraphNode.copyFromNode(node);
+            node.label = (document.getElementById("prop-label") as HTMLInputElement).value;
+            node.color = (document.getElementById("prop-color") as HTMLInputElement).value;
+            node.radius = parseFloat((document.getElementById("prop-radius") as HTMLInputElement).value);
+			pushNodeUpdate(oldNode, GraphNode.copyFromNode(node));
+
+            saveLastState();
+            draw(performance.now());
+        };
+		/*
+        (document.getElementById("prop-del") as HTMLButtonElement).onclick = () => {
+            pushNodeDelete([nodes.get(nodeIndex)!], getEdgeListCopy(getConnectedEdges(nodeIndex)));
+			deleteNode(nodeIndex);
+            saveLastState();
+            draw(performance.now());
+        };*/
+    });
+}
+
+function updateEdgeProperties(edgeIndex: number) {
+    editingEdge = edgeIndex;
+    editingNode = -1;
+
+    const e = edges.get(edgeIndex)!;
+
+    const html = `
+        <label>Weight</label>
+        <input id="prop-weight" type="number" step="1" value="${e.weight ?? ""}">
+
+        <label>Type</label>
+        <select id="prop-type">
+            <option value="0" ${e.edgeType === 0 ? "selected" : ""}>Bidirectional</option>
+            <option value="1" ${e.edgeType === 1 ? "selected" : ""}>Directional</option>
+        </select>
+
+		<button id="prop-flip">Flip Direction</button>
+        <button id="prop-save">Save</button>
+        <!--<button id="prop-del">Delete</button>-->
+    `;
+
+    editContent.innerHTML = html;
+
+    setTimeout(() => {
+        (document.getElementById("prop-save") as HTMLButtonElement).onclick = () => {
+            const w = (document.getElementById("prop-weight") as HTMLInputElement).value;
+            const t = parseInt((document.getElementById("prop-type") as HTMLSelectElement).value);
+			const oldEdge = GraphEdge.copyFromEdge(e);
+            e.weight = w === "" ? null : parseFloat(w);
+            e.edgeType = t;
+			pushEdgeUpdate(oldEdge, GraphEdge.copyFromEdge(e));
+
+            saveLastState();
+            draw(performance.now());
+        };
+		(document.getElementById("prop-flip") as HTMLButtonElement).onclick = () => {
+			const oldEdge = GraphEdge.copyFromEdge(e);
+			e!.switchDirection();
+			pushEdgeUpdate(oldEdge, GraphEdge.copyFromEdge(e));
+            saveLastState();
+            draw(performance.now());
+        };
+		/*
+        (document.getElementById("prop-del") as HTMLButtonElement).onclick = () => {
+			pushEdgeDelete([edges.get(edgeIndex)!]);
+			edges.delete(edgeIndex);
+            saveLastState();
+            draw(performance.now());
+        };*/
+    });
+}
 
 //#endregion
 
@@ -1642,6 +1699,7 @@ function mouseup(event: MouseEvent) {
 				selectedEdgeIDs = [];
 				pushSelection([mouseUpNodeId], oldSelectedNodeIndices, [], oldSelectedEdgeIndices);
 				addItemUnique(selectedNodeIDs, mouseUpNodeId);
+				updateNodeProperties(mouseUpNodeId);
 			}else if (lastMouseDownEdgeId > -1 && lastMouseDownEdgeId === mouseUpEdgeId && !event.shiftKey){
 				if (selectedEdgeIDs.contains(lastMouseDownEdgeId)){
 					pushSelection([], [], [], [lastMouseDownEdgeId]);
@@ -1654,12 +1712,7 @@ function mouseup(event: MouseEvent) {
 					selectedNodeIDs = [];
 					const pos = getPositionRelativeToElement(canvas, event.clientX, event.clientY);
 					const edgeIdx = getEdgeIDAtPosition(edges, pos);
-					const midpoint = nodes.get(edges.get(edgeIdx)!.node1id)!.position.add(nodes.get(edges.get(edgeIdx)!.node2id)!.position).div(2);
-					if (edgeIdx !== -1 && pos.sub(midpoint).magnitudeSqr < edgeWeightEditRadius ** 2) {
-						openEdgeWeightEditor(edgeIdx);
-						return;
-					}
-
+					updateEdgeProperties(edgeIdx);
 					pushSelection([], oldSelectedNodeIndices, [mouseUpEdgeId], oldSelectedEdgeIndices);
 					addItemUnique(selectedEdgeIDs, lastMouseDownEdgeId);
 				}
@@ -2077,6 +2130,7 @@ function touchend(event: TouchEvent) {
 					if (!removeItem(selectedNodeIDs, touchInfo.touchStartNodeId)){
 						pushSelection([touchInfo.touchStartNodeId], [], [], [...selectedEdgeIDs]);
 						addItemUnique(selectedNodeIDs, touchInfo.touchStartNodeId);
+						updateNodeProperties(touchInfo.touchStartNodeId);
 					}
 					else
 						pushSelection([], [touchInfo.touchStartNodeId], [], [...selectedEdgeIDs]);
@@ -2087,19 +2141,12 @@ function touchend(event: TouchEvent) {
 					const pos = touchInfo.touchPosition;
 					const edgeIdx = getEdgeIDAtPosition(edges, pos);
 					if (edgeIdx !== -1) {
-						const edge = edges.get(edgeIdx)!;
-						const midpoint = nodes.get(edge.node1id)!.position
-						.add(nodes.get(edge.node2id)!.position)
-						.div(2);
-						
-						if (pos.sub(midpoint).magnitudeSqr < edgeWeightEditRadius ** 2) {
-							openEdgeWeightEditor(edgeIdx);
-							return;
-						}
+						updateEdgeProperties(edgeIdx);
 					}
 					if (!removeItem(selectedEdgeIDs, touchInfo.touchStartEdgeId)){
 						pushSelection([], [...selectedNodeIDs], [touchInfo.touchStartEdgeId], []);
 						addItemUnique(selectedEdgeIDs, touchInfo.touchStartEdgeId);
+						updateNodeProperties(touchInfo.touchStartEdgeId);
 					}
 					else
 						pushSelection([], [...selectedNodeIDs], [], [touchInfo.touchStartEdgeId]);
