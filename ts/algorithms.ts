@@ -12,137 +12,138 @@ async function animationStep() {
 }
 
 function gatherConnections() {
-	let connections = Array<number[]>(nodes.length);
-	for (let i = 0; i < connections.length; i++) {
-		connections[i] = [].slice();
-	}
-	for (const edge of edges) {
-		addItemUnique(connections[edge.nodeIndex1]!, edge.nodeIndex2);
-		if (edge.edgeType == EdgeType.Bidirectional)
-			addItemUnique(connections[edge.nodeIndex2]!, edge.nodeIndex1);
+	let connections = new Map<number, Set<number>>();
+	for (const [id, edge] of edges) {
+		let set = connections.get(edge.node1id) ?? new Set<number>();
+		set!.add(edge.node2id);
+		connections.set(edge.node1id, set);
+		if (edge.edgeType === EdgeType.Bidirectional){
+			set = connections.get(edge.node2id) ?? new Set<number>();
+			set.add(edge.node1id);
+			connections.set(edge.node2id, set);
+		}
 	}
 	return connections;
 }
 
 function getEdgeWeight(a: number, b: number): number {
-	const weight = edges.find((e)=> e.nodeIndex1 === a && e.nodeIndex2 === b || (e.edgeType === EdgeType.Bidirectional && e.nodeIndex1 === b && e.nodeIndex2 === a))?.weight;
+	const weight = edges.find((e)=> e!.node1id === a && e!.node2id === b || (e!.edgeType === EdgeType.Bidirectional && e!.node1id === b && e!.node2id === a))?.weight;
 	if (weight)
 		return weight;
 	return NaN;
 }
 
 async function dijkstra() {
-	toggleTimelineVisibility(true);
-	resetTimeline();
-	highlightedNodeIndices = [];
-	highlightedEdgeIndices = [];
+    toggleTimelineVisibility(true);
+    resetTimeline();
 
-	if (selectedNodeIndices.length !== 1) {
-		alert("You need to select one node.");
-		return;
-	}
+    highlightedNodeIndices = [];
+    highlightedEdgeIndices = [];
 
-	function makeLabelSnapshot(distances: number[]): { [index: number]: string } {
-		const labels: { [index: number]: string } = {};
-		for (let i = 0; i < distances.length; i++) {
-			labels[i] = distances[i] === Infinity ? "∞" : distances[i]!.toString();
-		}
-		return labels;
-	}
+    if (selectedNodeIDs.length !== 1) {
+        alert("You need to select one node.");
+        return;
+    }
 
-	const start = selectedNodeIndices[0]!;
-	const n = nodes.length;
-	const visited = Array<boolean>(n).fill(false);
-	const connections = gatherConnections();
-	const distances = new Array(n).fill(Infinity);
+    const start = selectedNodeIDs[0]!;
+    const visited = new Set<number>();
+    const connections = gatherConnections();
 
-	recordFrame(new AnimFrame([], [], [], makeLabelSnapshot(distances)));
+    const distances = new Map<number, number>();
+    for (const [id] of nodes) distances.set(id, Infinity);
 
-	distances[start] = 0;
-	highlightedNodeIndices.push(start);
-	recordFrame(new AnimFrame(
-		[...highlightedNodeIndices],
-		[...highlightedEdgeIndices],
-		[],
-		makeLabelSnapshot(distances)
-	));
+    function makeLabelSnapshot(): { [id: number]: string } {
+        const out: { [id: number]: string } = {};
+        for (const [id, d] of distances)
+            out[id] = d === Infinity ? "∞" : d.toString();
+        return out;
+    }
 
-	while (true) {
-		let best = Infinity;
-		let u = -1;
+    distances.set(start, 0);
+    recordFrame(new AnimFrame(
+        [start],
+        [],
+        [],
+        [start],
+        makeLabelSnapshot()
+    ));
+    visited.add(start);
 
-		for (let i = 0; i < n; i++) {
-			const d = distances[i];
-			if (!visited[i] && d < best) {
-				best = d;
-				u = i;
-			}
-		}
+    while (true) {
+        let best = Infinity;
+        let u: number | null = null;
 
-		if (u === -1) break;
+        for (const [id, d] of distances) {
+            if (!visited.has(id) && d < best) {
+                best = d;
+                u = id;
+            }
+        }
 
-		visited[u] = true;
+        if (u === null) break;
 
-		if (addItemUnique(highlightedNodeIndices, u)) {
-			recordFrame(new AnimFrame(
-				[...highlightedNodeIndices],
-				[...highlightedEdgeIndices],
-				[],
-				makeLabelSnapshot(distances)
-			));
-		}
+        visited.add(u);
 
-		for (const v of connections[u]!) {
-			let edgeIndex = edges.findIndex(e =>
-				(e.nodeIndex1 === u && e.nodeIndex2 === v) ||
-				(e.nodeIndex2 === u && e.nodeIndex1 === v)
-			);
+        const animatedNodes: number[] = [];
+        if (!highlightedNodeIndices.contains(u)) {
+            highlightedNodeIndices.push(u);
+            animatedNodes.push(u);
+        }
 
-			if (edgeIndex >= 0) {
-				recordFrame(new AnimFrame(
-					[...highlightedNodeIndices],
-					[...highlightedEdgeIndices],
-					[edgeIndex],
-					makeLabelSnapshot(distances)
-				));
-				highlightedEdgeIndices.push(edgeIndex);
-			}
+        recordFrame(new AnimFrame(
+            [...highlightedNodeIndices],
+            [...highlightedEdgeIndices],
+            animatedNodes,
+            [],
+            makeLabelSnapshot()
+        ));
 
-			const w = getEdgeWeight(u, v);
-			const newDist = distances[u] + w;
-			let improved = false;
+        for (const v of connections.get(u)!) {
+            const edge = edges.find(e =>
+                (e!.node1id === u && e!.node2id === v) ||
+                (e!.node2id === u && e!.node1id === v)
+            );
+            if (!edge) continue;
 
-			if (newDist < distances[v]) {
-				distances[v] = newDist;
-				improved = true;
-			}
+            const animatedEdges: number[] = [];
+            if (!highlightedEdgeIndices.contains(edge.id)) {
+                animatedEdges.push(edge.id);
+            }
 
-			const isNewNode = addItemUnique(highlightedNodeIndices, v);
-			if (isNewNode) {
-				recordFrame(new AnimFrame(
-					[...highlightedNodeIndices],
-					[...highlightedEdgeIndices],
-					[],
-					makeLabelSnapshot(distances)
-				));
-			} else if (improved) {
-				recordFrame(new AnimFrame(
-					[...highlightedNodeIndices],
-					[...highlightedEdgeIndices],
-					[],
-					makeLabelSnapshot(distances)
-				));
-			}
-		}
-	}
+            const old = distances.get(v)!;
+            const cand = distances.get(u)! + getEdgeWeight(u, v);
 
-	for (let i = 0; i < n; i++) {
-		nodes[i]!.label = distances[i] === Infinity ? "∞" : distances[i]!.toString();
-	}
+            if (cand < old) {
+                distances.set(v, cand);
+            }
 
-	highlightedEdgeIndices = [];
-	highlightedNodeIndices = [];
-	draw(performance.now());
+            const animatedNodesNext: number[] = [];
+            if (!highlightedNodeIndices.contains(v)) {
+                highlightedNodeIndices.push(v);
+                animatedNodesNext.push(v);
+            }
+
+            recordFrame(new AnimFrame(
+                [...highlightedNodeIndices],
+                [...highlightedEdgeIndices],
+                animatedEdges,
+                animatedNodesNext,
+                makeLabelSnapshot()
+            ));
+
+            if (!highlightedEdgeIndices.contains(edge.id)) {
+                highlightedEdgeIndices.push(edge.id);
+            }
+        }
+    }
+
+    for (const [id, d] of distances) {
+        nodes.get(id)!.label = d === Infinity ? "∞" : d.toString();
+    }
+
+    highlightedNodeIndices = [];
+    highlightedEdgeIndices = [];
+    draw(performance.now());
 }
 
 async function BFS(){
@@ -152,18 +153,18 @@ async function BFS(){
 	highlightedNodeIndices = [];
 
 	let startNodeIndex: number;
-	if (selectedNodeIndices.length === 1)
-		startNodeIndex = selectedNodeIndices[0]!;
+	if (selectedNodeIDs.length === 1)
+		startNodeIndex = selectedNodeIDs[0]!;
 	else{
 		alert("You need to select one node.");
 		return;
 	}
 
-	let visited = Array<boolean>(nodes.length).fill(false);
+	const visited = new Set<number>();
 	let connections = gatherConnections();
 	let queue = Array<number>();
 	queue.push(startNodeIndex);
-	visited[startNodeIndex] = true;
+	visited.add(startNodeIndex);
 
 
 	while (queue.length > 0){
@@ -171,12 +172,12 @@ async function BFS(){
 		let added = addItemUnique(highlightedNodeIndices, currentNodeIndex);
 		if (added)
 			recordFrame(new AnimFrame([...highlightedNodeIndices], [...highlightedEdgeIndices], []));
-		for (const nodeIndex of connections[currentNodeIndex]!) {
-			if (!visited[nodeIndex]){
-				let edgeIndex = edges.findIndex(e =>
-					(e.nodeIndex1 === currentNodeIndex && e.nodeIndex2 === nodeIndex) ||
-					(e.nodeIndex2 === currentNodeIndex && e.nodeIndex1 === nodeIndex)
-				);
+		for (const nodeIndex of connections.get(currentNodeIndex) ?? new Set<number>()) {
+			if (!visited.has(nodeIndex)){
+				let edgeIndex = edges.find(e =>
+					(e!.node1id === currentNodeIndex && e!.node2id === nodeIndex) ||
+					(e!.node2id === currentNodeIndex && e!.node1id === nodeIndex)
+				)!.id;
 				if (edgeIndex >= 0){
 					recordFrame(new AnimFrame([...highlightedNodeIndices], [...highlightedEdgeIndices], [edgeIndex]));
 					highlightedEdgeIndices.push(edgeIndex);
@@ -185,7 +186,7 @@ async function BFS(){
 				if (added) 
 					recordFrame(new AnimFrame([...highlightedNodeIndices], [...highlightedEdgeIndices], []));
 				queue.push(nodeIndex);
-				visited[nodeIndex] = true;
+				visited.add(nodeIndex);
 			}
 		}
 	}
@@ -202,13 +203,13 @@ async function DFS() {
 	highlightedEdgeIndices = [];
 	highlightedNodeIndices = [];
 
-	if (selectedNodeIndices.length !== 1) {
+	if (selectedNodeIDs.length !== 1) {
 		alert("You need to select exactly one start node.");
 		return;
 	}
 
-	const start = selectedNodeIndices[0]!;
-	const visited = Array<boolean>(nodes.length).fill(false);
+	const start = selectedNodeIDs[0]!;
+	const visited = new Set<number>();
 	const connections = gatherConnections();
 
 	const stack: { from: number|null, to: number }[] = [];
@@ -217,14 +218,14 @@ async function DFS() {
 	while (stack.length > 0) {
 
 		const { from, to: current } = stack.pop()!;
-		if (visited[current]) continue;
+		if (visited.has(current)) continue;
 
 		if (from !== null) {
 
-			let edgeIndex = edges.findIndex(e =>
-				(e.nodeIndex1 === from && e.nodeIndex2 === current) ||
-				(e.nodeIndex2 === from && e.nodeIndex1 === current)
-			);
+			let edgeIndex = edges.find(e =>
+				(e!.node1id === from && e!.node2id === current) ||
+				(e!.node2id === from && e!.node1id === current)
+			)!.id;
 
 			if (edgeIndex >= 0) {
 				recordFrame(
@@ -248,12 +249,13 @@ async function DFS() {
 			);
 		}
 
-		visited[current] = true;
+		visited.add(current);
 
-		const neigh = connections[current]!;
-		for (let i = neigh.length - 1; i >= 0; i--) {
+		const neigh = Array.from(connections.get(current) ?? new Set<number>()).reverse();
+		
+		for (let i = 0; i < neigh.length; i++) {
 			const n = neigh[i]!;
-			if (!visited[n]) {
+			if (!visited.has(n)) {
 				stack.push({ from: current, to: n });
 			}
 		}

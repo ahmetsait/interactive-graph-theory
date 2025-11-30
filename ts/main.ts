@@ -83,41 +83,106 @@ class GraphNode {
 		public position: Vector2,
 		public radius: number,
 		public color: string,
-		public label: string) { }
+		public label: string) {
+			this.id = GraphNode.maxId;
+			GraphNode.maxId++;
+		}
 	
 	public velocity: Vector2 = new Vector2();
+	public id: number = 0;
+	public static maxId: number = 0;
+	
+	public static copyFromNode(node: GraphNode): GraphNode{
+		const n = new GraphNode(node.position, node.radius, node.color, node.label);
+		GraphNode.maxId--;
+		n.id = node.id;
+		return n;
+	}
+
+	toJSON() {
+		return {
+			id: this.id,
+			position: this.position,
+			radius: this.radius,
+			color: this.color,
+			label: this.label
+	};
+}
 }
 
 class GraphEdge {
 	constructor(
-		public nodeIndex1: number,
-		public nodeIndex2: number,
+		public node1id: number,
+		public node2id: number,
 		public edgeType: EdgeType,
-		public weight: number | null) { }
+		public weight: number | null) {
+			this.id = GraphEdge.maxId;
+			GraphEdge.maxId++;
+		}
+	public id: number = 0;
+	public static maxId: number = 0;
 
 	public static copyFromEdge(edge: GraphEdge): GraphEdge{
-		return new GraphEdge(edge.nodeIndex1, edge.nodeIndex2, edge.edgeType, edge.weight);
+		const e = new GraphEdge(edge.node1id, edge.node2id, edge.edgeType, edge.weight);
+		GraphEdge.maxId--;
+		e.id = edge.id;
+		return e;
+	}
+
+	public switchDirection(){
+		const temp1id = this.node1id;
+		this.node1id = this.node2id;
+		this.node2id = temp1id;
 	}
 }
 
 class Graph {
 	constructor(
-		public nodes: GraphNode[] = [],
-		public edges: GraphEdge[] = [],
+		public nodes: Map<number, GraphNode> = new Map<number, GraphNode>(),
+		public edges: Map<number, GraphEdge> = new Map<number, GraphEdge>(),
 		public screenData: ScreenData = new ScreenData(new Vector2(), 1)
 	) { }
 
 	public serializeJson(): string {
-		return JSON.stringify(this, null, '\t');
+		return JSON.stringify({
+			nodes: [...this.nodes.values()],
+			edges: [...this.edges.values()],
+			screenData: this.screenData,
+		}, null, '\t');
 	}
 
 	static deserializeJson(json: string): Graph {
-		let graph = Object.assign(new Graph(), JSON.parse(json)) as Graph;
-		for (const node of graph.nodes) {
-			node.position = new Vector2(node.position.x, node.position.y);
+		const data = JSON.parse(json);
+		const g = new Graph();
+
+		g.nodes = new Map<number, GraphNode>();
+		for (const n of data.nodes) {
+			const node = new GraphNode(
+				new Vector2(n.position.x, n.position.y),
+				n.radius,
+				n.color,
+				n.label
+			);
+			node.id = n.id;
+			g.nodes.set(node.id, node);
 		}
-		graph.screenData.offset = new Vector2(graph.screenData.offset.x, graph.screenData.offset.y);
-		return graph;
+
+		g.edges = new Map<number, GraphEdge>();
+		for (const e of data.edges) {
+			const edge = new GraphEdge(
+				e.node1id,
+				e.node2id,
+				e.edgeType,
+				e.weight
+			);
+			edge.id = e.id;
+			g.edges.set(edge.id, edge);
+		}
+
+		g.screenData = Object.assign(new ScreenData(new Vector2(), 1), data.screenData);
+		g.screenData.offset = new Vector2(data.screenData.offset.x, data.screenData.offset.y);
+
+		return g;
 	}
 }
 
@@ -197,6 +262,32 @@ if (!Array.prototype.contains) {
   };
 }
 
+if (!Map.prototype.some){
+	Map.prototype.some = function<K, V>(this: Map<K, V>, predicate: (value?: V) => boolean): boolean{
+		let res = false;
+		for(let val of this){
+			if (predicate(val[1])){
+				res = true;
+				break;
+			}
+		}
+		return res;
+	} 
+}
+
+if (!Map.prototype.find){
+	Map.prototype.find = function<K, V>(this: Map<K, V>, predicate: (value?: V) => boolean): V | undefined{
+		let res: V | undefined = undefined;
+		for(let val of this){
+			if (predicate(val[1])){
+				res = val[1];
+				break;
+			}
+		}
+		return res;
+	} 
+}
+
 //#endregion
 
 
@@ -226,8 +317,6 @@ const defaultNodeRadius = 12.5;	// px
 const edgeThickness = 2;	// px
 const edgeWeightEditRadius = 15; //px
 let edgeAnimOffset = 0;
-
-//const touchEnabled = Modernizr.touchevents;
 
 // zoom anim variables
 const zoomSpeed = 0.001;
@@ -274,8 +363,8 @@ document.addEventListener("keydown", (e: KeyboardEvent) => {
 	}
 });
 
-let nodes: GraphNode[] = [];
-let edges: GraphEdge[] = [];
+let nodes: Map<number, GraphNode> = new Map<number, GraphNode>();
+let edges: Map<number, GraphEdge> = new Map<number, GraphEdge>();
 
 //#region Import/Export
 
@@ -399,7 +488,7 @@ function importJson(json: string, recordUndo: boolean = true) {
 	try {
 		const graph = Graph.deserializeJson(json);
 		if (recordUndo)
-			pushClear(new Graph(nodes, edges, screenData), graph, [...selectedNodeIndices], [...selectedEdgeIndices]);
+			pushClear(new Graph(nodes, edges, screenData), graph, [...selectedNodeIDs], [...selectedEdgeIDs]);
 		importGraph(graph);
 	}
 	catch (err) {
@@ -412,19 +501,33 @@ function importJson(json: string, recordUndo: boolean = true) {
 function importGraph(graph: Graph){
 	try {
 		resetAll();
-
 		nodes = graph.nodes;
 		edges = graph.edges;
+
+		let max = -1;
+		for (let [k,v] of nodes){
+			if (v.id > max)
+				max = v.id;
+		}
+		GraphNode.maxId = max + 1;
+
+		max = -1;
+		for (let [k,v] of edges){
+			if (v.id > max)
+				max = v.id;
+		}
+		GraphEdge.maxId = max + 1;
+
 		if (graph.screenData) {
 			screenData.offset = new Vector2(graph.screenData.offset.x, graph.screenData.offset.y);
 			screenData.zoom = graph.screenData.zoom;
 		} else {
 			screenData = new ScreenData(new Vector2(), 1);
 		}
-
-		let max = 1;
+		
+		max = 1;
 		for (const node of nodes) {
-			const label = parseInt(node.label!);
+			const label = parseInt(node[1].label!);
 			if (!isNaN(label) && label > max)
 				max = label;
 		}
@@ -444,7 +547,6 @@ function importGraph(graph: Graph){
 function loadState(key: string){
 	try {
 		const serializedState = localStorage.getItem(key);
-		console.log("STATE: " + serializedState);
 		if (serializedState === null)
 			return;
 		importJson(JSON.parse(serializedState), false);
@@ -546,90 +648,93 @@ function clamp(value: number, min: number, max: number) : number{
 	return Math.min(Math.max(value, min), max);
 }
 
-function getNodeIndexAtPosition(nodes: GraphNode[], position: Vector2): number {
-	let closestNodeIndex = -1;
+function getNodeIDAtPosition(nodes: Map<number, GraphNode>, position: Vector2): number {
+	let closestNodeId = -1;
 	let closestNodeX: number;
 	let closestNodeY: number;
 
-	for (let nodeIndex = 0; nodeIndex < nodes.length; nodeIndex++) {
-		let node = nodes[nodeIndex]!;
+	for(let kv of nodes){
+		let node = kv[1]!;
 		let distanceSqr = position.sub(node.position).magnitudeSqr;
 		if (distanceSqr < (node.radius + defaultNodeRadius) ** 2) {
-			if (closestNodeIndex === -1) {
-				closestNodeIndex = nodeIndex;
+			if (closestNodeId === -1) {
+				closestNodeId = node.id;
 				closestNodeX = node.position.x;
 				closestNodeY = node.position.y;
 			}
 			else if (distanceSqr < (position.x - closestNodeX!) ** 2 + (position.y - closestNodeY!) ** 2) {
-				closestNodeIndex = nodeIndex;
+				closestNodeId = node.id;
 				closestNodeX = node.position.x;
 				closestNodeY = node.position.y;
 			}
 		}
 	}
-	return closestNodeIndex;
+	return closestNodeId;
 }
 
-function getEdgeIndexAtPosition(edges: GraphEdge[], position: Vector2) : number
+function getEdgeIDAtPosition(edges: Map<number, GraphEdge>, position: Vector2) : number
 {
-	let closestEdgeIndex = -1;
+	let closestEdgeId = -1;
 	let minDistance = Number.POSITIVE_INFINITY;
 
-	for (let edgeIndex = 0; edgeIndex < edges.length; edgeIndex++) {
-		let edge = edges[edgeIndex]!;
-		let node1 = nodes[edge.nodeIndex1]!;
-		let node2 = nodes[edge.nodeIndex2]!;
+	for (let kv of edges){
+		let edge = kv[1]!;
+		let node1 = nodes.get(edge.node1id)!;
+		let node2 = nodes.get(edge.node2id)!;
 		
 		let distance = (new Line(node1.position, node2?.position)).getPointDistance(position);
 		const selectDistance = (Modernizr.touchevents ? 12 : 8) * window.devicePixelRatio;
 		if (distance < selectDistance) {
-			if (closestEdgeIndex === -1) {
-				closestEdgeIndex = edgeIndex;
+			if (closestEdgeId === -1) {
+				closestEdgeId = edge.id;
 				minDistance = distance;
 			}
 			else if (distance < minDistance) {
-				closestEdgeIndex = edgeIndex;
+				closestEdgeId = edge.id;
 				minDistance = distance;
 			}
 		}
 	}
-	return closestEdgeIndex;
+	return closestEdgeId;
 }
 
-function getConnectedEdges(nodeIndex: number, deepCopy:boolean = false): GraphEdge[]{
-	return edges.reduce((acc: GraphEdge[], val: GraphEdge) => {
-		if (val.nodeIndex1 === nodeIndex || val.nodeIndex2 === nodeIndex)
-			acc.push(deepCopy ? new GraphEdge(val.nodeIndex1, val.nodeIndex2, val.edgeType, val.weight) : val);
-		return acc;
-	}, [])
+function getConnectedEdges(nodeId: number, deepCopy:boolean = false): GraphEdge[]{
+	let res: GraphEdge[] = [];
+	for(let kv of edges){
+		let edge = kv[1];
+		if (edge.node1id === nodeId || edge.node2id === nodeId)
+			res.push(deepCopy ? GraphEdge.copyFromEdge(edge) : edge);
+	}
+	return res;
 }
 
-function getConnectedEdgeIndices(nodeIndex: number): number[]{
-	return edges.reduce((acc: number[], val: GraphEdge, i: number)=> {
-		if (val.nodeIndex1 === nodeIndex || val.nodeIndex2 === nodeIndex)
-			acc.push(i);
-		return acc;
-	}, []);
+function getConnectedEdgeIDs(nodeId: number): number[]{
+	let res: number[] = [];
+	for(let kv of edges){
+		let edge = kv[1];
+		if (edge.node1id === nodeId || edge.node2id === nodeId)
+			res.push(edge.id);
+	}
+	return res;
 }
 
 function getEdgeListCopy(list: GraphEdge[]): GraphEdge[]{
 	return list.reduce((acc: GraphEdge[], val) => {
-		acc.push(new GraphEdge(val.nodeIndex1, val.nodeIndex2, val.edgeType, val.weight));
+		acc.push(GraphEdge.copyFromEdge(val));
 		return acc;	
 	}, [])
 }
 
-function getNodeIndicesInRect(box: DOMRectReadOnly): number[] {
+function getNodeIDsInRect(box: DOMRectReadOnly): number[] {
 	let nodeIndices: number[] = [];
-	for (let nodeIndex = 0; nodeIndex < nodes.length; nodeIndex++) {
-		let node = nodes[nodeIndex]!;
+	nodes.forEach((node, key) => {
 		if (node.position.x < box.right &&
 			node.position.x > box.left &&
 			node.position.y < box.bottom &&
 			node.position.y > box.top) {
-			nodeIndices.push(nodeIndex);
+			nodeIndices.push(key);
 		}
-	}
+	})
 	return nodeIndices;
 }
 
@@ -647,51 +752,51 @@ function nodeRadiusCurve(radius: number): number {
 }
 
 function resetAll() {
-	selectedNodeIndices = [];
-	selectedEdgeIndices = [];
-	edges = [];
-	nodes = [];
+	selectedNodeIDs = [];
+	selectedEdgeIDs = [];
+	edges = new Map<number, GraphEdge>();
+	nodes = new Map<number, GraphNode>();
 	labelCounter = 1;
 	saveLastState();
 	draw(window.performance.now());
 }
 
 function clearGraph(){
-	pushClear(new Graph(nodes, edges, screenData), new Graph([], [], new ScreenData(new Vector2(), 1)), [...selectedNodeIndices], [...selectedEdgeIndices]);
+	pushClear(new Graph(nodes, edges, screenData), new Graph(new Map<number, GraphNode>(), new Map<number, GraphEdge>(), new ScreenData(new Vector2(), 1)), [...selectedNodeIDs], [...selectedEdgeIDs]);
 	resetAll();
 }
 
 function selectAll() {
-	selectedEdgeIndices = [];
-	if (selectedNodeIndices.length < nodes.length){
-		selectedNodeIndices = [...nodes.keys()];
-		pushSelection([...selectedNodeIndices], [], [], [...selectedEdgeIndices]);
+	selectedEdgeIDs = [];
+	if (selectedNodeIDs.length < nodes.size){
+		selectedNodeIDs = [...nodes.keys()];
+		pushSelection([...selectedNodeIDs], [], [], [...selectedEdgeIDs]);
 	}
 	else{
-		pushSelection([], [...selectedNodeIndices], [], [...selectedEdgeIndices]);
-		selectedNodeIndices = [];
+		pushSelection([], [...selectedNodeIDs], [], [...selectedEdgeIDs]);
+		selectedNodeIDs = [];
 	}
 	draw(window.performance.now());
 }
 
 function deleteSelected() {
-	deleteNodes(selectedNodeIndices);
+	deleteNodes(selectedNodeIDs);
 }
 
-function moveNodes(delta: Vector2, nodeIndices: number[]) {
-	nodeIndices.forEach(nodeIndex => {
-		if (nodeIndex >= 0 && nodeIndex < nodes.length) {
-			let node = nodes[nodeIndex]!;
+function moveNodes(delta: Vector2, nodeIDs: number[]) {
+	nodeIDs.forEach(nodeID => {
+		if (nodeID >= 0) {
+			let node = nodes.get(nodeID)!;
 			node.position = node.position.add(delta);
 		}
 		else
-			throw new RangeError(`nodeIndex = ${nodeIndex} is out of range for nodes.length = ${nodes.length}`);
+			throw new RangeError(`nodeID = ${nodeID} couldn't have found!`);
 	});
 }
 
-function getConnectedNodes(selectedNodeIndex : number): number[]{
-	if (selectedNodeIndex === -1) return [];
-	const toVisit = [selectedNodeIndex];
+function getConnectedNodes(selectedNodeID : number): number[]{
+	if (selectedNodeID === -1) return [];
+	const toVisit = [selectedNodeID];
 	const visited = new Set<number>();
 
 	while (toVisit.length > 0) {
@@ -700,10 +805,10 @@ function getConnectedNodes(selectedNodeIndex : number): number[]{
 		visited.add(i);
 
 		for (const e of edges) {
-			if (e.nodeIndex1 === i && !visited.has(e.nodeIndex2))
-				toVisit.push(e.nodeIndex2);
-			else if (e.nodeIndex2 === i && !visited.has(e.nodeIndex1))
-				toVisit.push(e.nodeIndex1);
+			if (e[1].node1id === i && !visited.has(e[1].node2id))
+				toVisit.push(e[1].node2id);
+			else if (e[1].node2id === i && !visited.has(e[1].node1id))
+				toVisit.push(e[1].node1id);
 		}
 	}
 	return Array.from(visited);
@@ -711,60 +816,53 @@ function getConnectedNodes(selectedNodeIndex : number): number[]{
 
 function deleteNodes(nodeIndices: number[]) {
 	let array = new Int32Array(nodeIndices).sort().reverse();
-	let deletedNodeIndices: number[] = [];
 	let deletedNodes: GraphNode[] = [];
-	let edgeCopy = getEdgeListCopy(edges);
-	for (let nodeIndex of array){
-		deletedNodeIndices.push(nodeIndex);
-		deletedNodes.push(nodes[nodeIndex]!);
-		deleteNode(nodeIndex);
+	let deletedEdges: GraphEdge[] = [];
+	for (let nodeID of array){
+		let node = nodes.get(nodeID)!;
+		deletedEdges = [...deletedEdges, ...getConnectedEdges(nodeID)];
+		deletedNodes.push(node);
+		deleteNode(nodeID);
 	}
-	pushNodeDelete([...deletedNodeIndices], [...deletedNodes], edgeCopy);
+	pushNodeDelete(deletedNodes, deletedEdges);
 	draw(window.performance.now());
 }
 
-function deleteNode(nodeIndex: number) {
-	for (let i = edges.length - 1; i >= 0; i--) {
-		const edge = edges[i]!;
+function deleteNode(nodeId: number) {
+	for (let kv of edges){
+		const edge = kv[1]!;
 		// Tear off edges before deleting node
-		if (edge.nodeIndex1 === nodeIndex || edge.nodeIndex2 === nodeIndex)
-			edges.splice(i, 1);
-		// Shift edge node indices to adjust
-		if (edge.nodeIndex1 > nodeIndex)
-			edge.nodeIndex1--;
-		if (edge.nodeIndex2 > nodeIndex)
-			edge.nodeIndex2--;
+		if (edge.node1id === nodeId || edge.node2id === nodeId)
+			edges.delete(edge.id);
 	}
-	removeItem(selectedNodeIndices, nodeIndex);
-	for (let i = selectedNodeIndices.length - 1; i >= 0; i--) {
-		const v = selectedNodeIndices[i];
-		if (v !== undefined && v > nodeIndex) {
-			selectedNodeIndices[i] = v - 1;
+	removeItem(selectedNodeIDs, nodeId);
+	for (let i = selectedNodeIDs.length - 1; i >= 0; i--) {
+		const v = selectedNodeIDs[i];
+		if (v !== undefined && v > nodeId) {
+			selectedNodeIDs[i] = v - 1;
 		}
 	}
-	nodes.splice(nodeIndex, 1);
+	nodes.delete(nodeId);
 }
 
 function cutEdges(scissor: Line) {
 	let edgesToCut: GraphEdge[] = [];
-	let edgeIndicesToCut: number[] = [];
-	for (let i = edges.length - 1; i >= 0; i--) {
-		const edge = edges[i]!;
-		const node1 = nodes[edge.nodeIndex1]!;
-		const node2 = nodes[edge.nodeIndex2]!;
+	for (let kv of edges){
+		const edge = kv[1]!;
+		const node1 = nodes.get(edge.node1id)!;
+		const node2 = nodes.get(edge.node2id)!;
 		if (scissor.intersects(new Line(node1.position, node2.position))) {
-			edgeIndicesToCut.push(i);
-			edgesToCut.push(structuredClone(edges[i]!));
-			edges.splice(i, 1);
+			edgesToCut.push(structuredClone(edge!));
+			edges.delete(edge.id);
 		}
 	}
-	if (edgeIndicesToCut.length > 0)
-		pushEdgeDelete(edgeIndicesToCut, edgesToCut);
+	if (edgesToCut.length > 0)
+		pushEdgeDelete(edgesToCut);
 }
 
 function isEdgeVisible(e: GraphEdge, camLeft: number, camRight: number,camTop: number, camBottom: number): boolean {
-	const n1 = nodes[e.nodeIndex1]!.position;
-	const n2 = nodes[e.nodeIndex2]!.position;
+	const n1 = nodes.get(e.node1id)!.position;
+	const n2 = nodes.get(e.node2id)!.position;
 	const minX = Math.min(n1.x, n2.x);
 	const maxX = Math.max(n1.x, n2.x);
 	const minY = Math.min(n1.y, n2.y);
@@ -791,10 +889,10 @@ function tryVibrate(pattern : number[] | number){
 	}
 }
 
-function openEdgeWeightEditor(edgeIndex: number) {
-	const edge = edges[edgeIndex]!;
-	const node1 = nodes[edge.nodeIndex1]!.position;
-	const node2 = nodes[edge.nodeIndex2]!.position;
+function openEdgeWeightEditor(edgeID: number) {
+	const edge = edges.get(edgeID)!;
+	const node1 = nodes.get(edge.node1id)!.position;
+	const node2 = nodes.get(edge.node2id)!.position;
 	const midPoint = node1.add(node2).div(2);
 	const midScreen = midPoint.mul(screenData.zoom).add(screenData.offset);
 
@@ -868,16 +966,16 @@ enum DeltaType {
 
 type Delta =
 	| { type: DeltaType.NodeAdd, node: GraphNode }
-	| { type: DeltaType.NodeDelete, indices: number[], nodes: GraphNode[], oldEdges: GraphEdge[]}
-	| { type: DeltaType.NodeMove, indices: number[], delta: Vector2}
-	| { type: DeltaType.NodeUpdate, index: number, oldNode: GraphNode, newNode: GraphNode }
+	| { type: DeltaType.NodeDelete, nodes: GraphNode[], oldEdges: GraphEdge[]}
+	| { type: DeltaType.NodeMove, ids: number[], delta: Vector2}
+	| { type: DeltaType.NodeUpdate, oldNode: GraphNode, newNode: GraphNode }
 	| { type: DeltaType.EdgeAdd, edge: GraphEdge }
-	| { type: DeltaType.EdgeDelete, indices: number[], edges: GraphEdge[] }
-	| { type: DeltaType.EdgeUpdate, index: number, oldEdge: GraphEdge, newEdge: GraphEdge }
+	| { type: DeltaType.EdgeDelete, edges: GraphEdge[] }
+	| { type: DeltaType.EdgeUpdate, oldEdge: GraphEdge, newEdge: GraphEdge }
 	| { type: DeltaType.EdgeSplit, splittedEdge: GraphEdge, newNode: GraphNode, edge1: GraphEdge, edge2: GraphEdge}
 	| { type: DeltaType.EdgeDrop, edge: GraphEdge, newNode: GraphNode}
-	| { type: DeltaType.Selection, addedNodeIndices: number[], removedNodeIndices: number[], addedEdgeIndices: number[], removedEdgeIndices: number[]}
-	| { type: DeltaType.Clear, oldGraph: Graph, newGraph: Graph, oldSelectedNodeIndices: number[], oldSelectedEdgeIndices: number[]};
+	| { type: DeltaType.Selection, addedNodeIDs: number[], removedNodeIDs: number[], addedEdgeIDs: number[], removedEdgeIDs: number[]}
+	| { type: DeltaType.Clear, oldGraph: Graph, newGraph: Graph, oldSelectedNodeIDs: number[], oldSelectedEdgeIDs: number[]};
 
 let undoStack: Delta[] = [];
 let redoStack: Delta[] = [];
@@ -889,6 +987,9 @@ redoButton.disabled = true;
 
 function pushDelta(d: Delta) {
 	undoStack.push(d);
+	undoStackStrings.push(deltaToString(d));
+    redoStackStrings = [];
+	updateHistoryPanel();
 	redoStack = [];
 	undoButton.disabled = false;
 	redoButton.disabled = true;
@@ -903,6 +1004,7 @@ function undo() {
 	undoButton.disabled = undoStack.length === 0;
 	applyReverseDelta(d);
 	redoStack.push(d);
+	pushRedoDescription(deltaToString(d));
 	redoButton.disabled = false;
 	saveLastState();
 	draw(performance.now());
@@ -917,7 +1019,9 @@ function redo() {
 	redoButton.disabled = redoStack.length === 0;
 	applyDelta(d);
 	undoStack.push(d);
+	pushUndoDescription(deltaToString(d));
 	undoButton.disabled = false;
+	
 	saveLastState();
 	draw(performance.now());
 }
@@ -925,56 +1029,55 @@ function redo() {
 function applyDelta(d: Delta) {
 	switch (d.type) {
 		case DeltaType.NodeAdd:
-			nodes.push(d.node);
+			nodes.set(d.node.id, d.node);
 			break;
 		case DeltaType.NodeDelete:
-			for(let index of d.indices)
-				deleteNode(index);
+			for(let node of d.nodes)
+				deleteNode(node.id);
 			break;
 		case DeltaType.NodeMove:
-			for (const i of d.indices)
-				nodes[i]!.position = nodes[i]!.position.add(d.delta);
+			for (const i of d.ids)
+				nodes.get(i)!.position = nodes.get(i)!.position.add(d.delta);
 			break;
 		case DeltaType.NodeUpdate:
-			if (nodes.length > d.index)
-				nodes[d.index] = d.newNode;
+			nodes.set(d.newNode.id, d.newNode);
 			break;
 		case DeltaType.EdgeAdd:
-			edges.push(GraphEdge.copyFromEdge(d.edge));
+			edges.set(d.edge.id, d.edge);
 			break;
 		case DeltaType.EdgeDelete:
-			for(let index of d.indices)
-				edges.splice(index, 1);
+			for(let e of d.edges)
+				edges.delete(e.id);
 			break;
 		case DeltaType.EdgeUpdate:
-			edges[d.index] = GraphEdge.copyFromEdge(d.newEdge);
+			edges.set(d.newEdge.id, d.newEdge);
 			break;
 		case DeltaType.EdgeSplit:
-			addItemUnique(nodes, d.newNode);
-			removeItem(edges, d.splittedEdge, true);
-			addItemUnique(edges, GraphEdge.copyFromEdge(d.edge1));
-			addItemUnique(edges, GraphEdge.copyFromEdge(d.edge2));
+			nodes.set(d.newNode.id, d.newNode);
+			edges.delete(d.splittedEdge.id);
+			edges.set(d.edge1.id, d.edge1);
+			edges.set(d.edge2.id, d.edge2);
 			break;
 
 		case DeltaType.EdgeDrop:
-			addItemUnique(nodes, d.newNode);
-			addItemUnique(edges, GraphEdge.copyFromEdge(d.edge));
+			nodes.set(d.newNode.id, d.newNode);
+			edges.set(d.edge.id, d.edge);
 			break;
 		case DeltaType.Selection:
-			for(let i of d.addedEdgeIndices)
-				addItemUnique(selectedEdgeIndices, i);
-			for(let i of d.removedEdgeIndices)
-				removeItem(selectedEdgeIndices, i);
-			for(let i of d.addedNodeIndices)
-				addItemUnique(selectedNodeIndices, i);
-			for(let i of d.removedNodeIndices)
-				removeItem(selectedNodeIndices, i);
+			for(let i of d.addedEdgeIDs)
+				addItemUnique(selectedEdgeIDs, i);
+			for(let i of d.removedEdgeIDs)
+				removeItem(selectedEdgeIDs, i);
+			for(let i of d.addedNodeIDs)
+				addItemUnique(selectedNodeIDs, i);
+			for(let i of d.removedNodeIDs)
+				removeItem(selectedNodeIDs, i);
 			break;
 		case DeltaType.Clear:
 			if (d.newGraph){
 				importGraph(d.newGraph);
-				selectedNodeIndices = [];
-				selectedEdgeIndices = [];
+				selectedNodeIDs = [];
+				selectedEdgeIDs = [];
 			}
 			break;
 	}
@@ -983,103 +1086,177 @@ function applyDelta(d: Delta) {
 function applyReverseDelta(d: Delta) {
 	switch (d.type) {
 		case DeltaType.NodeAdd:
-			deleteNode(nodes.length - 1);
+			deleteNode(d.node.id);
 			break;
 		case DeltaType.NodeDelete:
-			for (let i = 0; i<d.indices.length; i++)
-				nodes.splice(d.indices[i]!, 0, d.nodes[i]!);
-			edges = getEdgeListCopy(d.oldEdges);
+			for (let i = 0; i<d.nodes.length; i++)
+				nodes.set(d.nodes[i]!.id, d.nodes[i]!);
+			for (let edge of getEdgeListCopy(d.oldEdges))
+				edges.set(edge.id, edge);
 			break;
 		case DeltaType.NodeMove:
-			for (const i of d.indices)
-				nodes[i]!.position = nodes[i]!.position.sub(d.delta);
+			for (const i of d.ids)
+				nodes.get(i)!.position = nodes.get(i)!.position.sub(d.delta);
 			break;
 		case DeltaType.NodeUpdate:
-			if (nodes.length > d.index)
-				nodes[d.index] = d.oldNode;
+			nodes.set(d.oldNode.id, d.oldNode);
 			break;
 		case DeltaType.EdgeAdd:
-			edges.pop();
+			edges.delete(d.edge.id);
 			break;
 		case DeltaType.EdgeDelete:
-			for (let i = 0; i<d.indices.length; i++)
-				edges.splice(d.indices[i]!, 0, GraphEdge.copyFromEdge(d.edges[i]!));
+			for (let i = 0; i < d.edges.length; i++)
+				edges.set(d.edges[i]!.id, d.edges[i]!);
 			break;
 		case DeltaType.EdgeUpdate:
-			edges[d.index] = GraphEdge.copyFromEdge(d.oldEdge);
+			edges.set(d.oldEdge.id, d.oldEdge);
 			break;
 		case DeltaType.EdgeSplit:
-			removeItem(edges, d.edge1, true);
-			removeItem(edges, d.edge2, true);
-			addItemUnique(edges, GraphEdge.copyFromEdge(d.splittedEdge));
-			removeItem(nodes, d.newNode, true);
+			edges.delete(d.edge1.id);
+			edges.delete(d.edge2.id);
+			edges.set(d.splittedEdge.id, d.splittedEdge);
+			nodes.delete(d.newNode.id);
 			break;
 		case DeltaType.EdgeDrop:
-			deleteNode(nodes.length - 1);
+			deleteNode(d.newNode.id);
 			break;
 		case DeltaType.Selection:
-			for(let i of d.removedEdgeIndices)
-				addItemUnique(selectedEdgeIndices, i);
-			for(let i of d.addedEdgeIndices)
-				removeItem(selectedEdgeIndices, i);
-			for(let i of d.removedNodeIndices)
-				addItemUnique(selectedNodeIndices, i);
-			for(let i of d.addedNodeIndices)
-				removeItem(selectedNodeIndices, i);
+			for(let i of d.removedEdgeIDs)
+				addItemUnique(selectedEdgeIDs, i);
+			for(let i of d.addedEdgeIDs)
+				removeItem(selectedEdgeIDs, i);
+			for(let i of d.removedNodeIDs)
+				addItemUnique(selectedNodeIDs, i);
+			for(let i of d.addedNodeIDs)
+				removeItem(selectedNodeIDs, i);
 			break;
 		case DeltaType.Clear:
 			if (d.oldGraph){
 				importGraph(d.oldGraph);
-				selectedNodeIndices = [...d.oldSelectedNodeIndices];
-				selectedEdgeIndices = [...d.oldSelectedEdgeIndices];
+				selectedNodeIDs = [...d.oldSelectedNodeIDs];
+				selectedEdgeIDs = [...d.oldSelectedEdgeIDs];
 			}
 			break;
 	}
 }
 
 function pushNodeAdd(node: GraphNode) {
-	pushDelta({ type: DeltaType.NodeAdd, node: node });
+	pushDelta({ type: DeltaType.NodeAdd, node: GraphNode.copyFromNode(node) });
 }
 
-function pushNodeDelete(indices: number[], nodes: GraphNode[], edgesList: GraphEdge[]) {
-	pushDelta({ type: DeltaType.NodeDelete, indices: indices, nodes: nodes, oldEdges: edgesList});
+function pushNodeDelete(nodes: GraphNode[], edgesList: GraphEdge[]) {
+	pushDelta({ type: DeltaType.NodeDelete, nodes: [...nodes], oldEdges: getEdgeListCopy(edgesList)});
 }
 
-function pushNodeMove(indices: number[], delta: Vector2) {
-	pushDelta({ type: DeltaType.NodeMove, indices:[...indices], delta });
+function pushNodeMove(ids: number[], delta: Vector2) {
+	pushDelta({ type: DeltaType.NodeMove, ids:[...ids], delta});
 }
 
-function pushNodeUpdate(index: number, oldN: GraphNode, newN: GraphNode) {
-	pushDelta({ type: DeltaType.NodeUpdate, index, oldNode: oldN, newNode: newN });
+function pushNodeUpdate(oldN: GraphNode, newN: GraphNode) {
+	pushDelta({ type: DeltaType.NodeUpdate,oldNode: GraphNode.copyFromNode(oldN), newNode: GraphNode.copyFromNode(newN) });
 }
 
-function pushSelection(addedNodeIndices: number[], removedNodeIndices: number[], addedEdgeIndices: number[], removedEdgeIndices: number[]) {
-	pushDelta({ type: DeltaType.Selection, addedNodeIndices: addedNodeIndices, removedNodeIndices: removedNodeIndices, addedEdgeIndices: addedEdgeIndices, removedEdgeIndices: removedEdgeIndices});
+function pushSelection(addedNodeIDs: number[], removedNodeIDs: number[], addedEdgeIDs: number[], removedEdgeIDs: number[]) {
+	pushDelta({ type: DeltaType.Selection, addedNodeIDs: [...addedNodeIDs], removedNodeIDs: [...removedNodeIDs], addedEdgeIDs: [...addedEdgeIDs], removedEdgeIDs: [...removedEdgeIDs]});
 }
 
 function pushEdgeAdd(edge: GraphEdge) {
-	pushDelta({ type: DeltaType.EdgeAdd, edge: edge });
+	pushDelta({ type: DeltaType.EdgeAdd, edge: GraphEdge.copyFromEdge(edge) });
 }
 
-function pushEdgeDelete(indices: number[], edges: GraphEdge[]) {
-	pushDelta({ type: DeltaType.EdgeDelete, indices: indices, edges: edges });
+function pushEdgeDelete(edges: GraphEdge[]) {
+	pushDelta({ type: DeltaType.EdgeDelete, edges: getEdgeListCopy(edges) });
 }
 
-function pushEdgeUpdate(index: number, oldE: GraphEdge, newE: GraphEdge) {
-	pushDelta({ type: DeltaType.EdgeUpdate, index, oldEdge: oldE, newEdge: newE });
+function pushEdgeUpdate(oldE: GraphEdge, newE: GraphEdge) {
+	pushDelta({ type: DeltaType.EdgeUpdate, oldEdge: GraphEdge.copyFromEdge(oldE), newEdge: GraphEdge.copyFromEdge(newE) });
 }
 
 function pushEdgeSplit(splittedEdge: GraphEdge, newNode: GraphNode, edge1: GraphEdge, edge2: GraphEdge){
-	pushDelta({ type: DeltaType.EdgeSplit, splittedEdge: splittedEdge, newNode: newNode, edge1: edge1, edge2: edge2});
+	pushDelta({ type: DeltaType.EdgeSplit,
+		splittedEdge: GraphEdge.copyFromEdge(splittedEdge),
+		newNode: GraphNode.copyFromNode(newNode),
+		edge1: GraphEdge.copyFromEdge(edge1),
+		edge2: GraphEdge.copyFromEdge(edge2)}
+	);
 }
 
 function pushEdgeDrop(edge: GraphEdge, node: GraphNode){
-	pushDelta({ type: DeltaType.EdgeDrop, edge: edge, newNode: node});
+	pushDelta({ type: DeltaType.EdgeDrop, edge: GraphEdge.copyFromEdge(edge), newNode: GraphNode.copyFromNode(node)});
 }
 
-function pushClear(oldgraph: Graph, newGraph: Graph, oldSelectedNodeIndices: number[], oldSelectedEdgeIndices: number[]){
-	pushDelta({ type: DeltaType.Clear, oldGraph: oldgraph, newGraph: newGraph, oldSelectedNodeIndices: oldSelectedNodeIndices, oldSelectedEdgeIndices: oldSelectedEdgeIndices});
+function pushClear(oldgraph: Graph, newGraph: Graph, oldSelectedNodeIDs: number[], oldSelectedEdgeIDs: number[]){
+	pushDelta({ type: DeltaType.Clear, oldGraph: oldgraph, newGraph: newGraph, oldSelectedNodeIDs: [...oldSelectedNodeIDs], oldSelectedEdgeIDs: [...oldSelectedEdgeIDs]});
 }
+
+//#region Undo/Redo History
+
+const historyPanel = document.getElementById("historyPanel")!;
+let undoStackStrings: string[] = [];
+let redoStackStrings: string[] = [];
+
+function pushUndoDescription(s: string) {
+    undoStackStrings.push(s);
+    redoStackStrings.pop();
+    updateHistoryPanel();
+}
+
+function pushRedoDescription(s: string) {
+    redoStackStrings.push(s);
+	undoStackStrings.pop();
+    updateHistoryPanel();
+}
+
+function updateHistoryPanel() {
+    let html = '';
+    for (let i = 0; i < undoStackStrings.length; i++)
+        html += `<div class="item">${undoStackStrings[i]}</div>`;
+    for (let i = redoStackStrings.length - 1; i >= 0; i--)
+        html += `<div class="redoItem">${redoStackStrings[i]}</div>`;
+    historyPanel.innerHTML = html;
+}
+
+function deltaToString(d: Delta): string {
+    switch (d.type) {
+        case DeltaType.NodeAdd:
+            return `Node added (${d.node.id})`;
+
+        case DeltaType.NodeDelete:
+            return `Deleted ${d.nodes.length} node(s)`;
+
+        case DeltaType.NodeMove:
+            return `Moved ${d.ids.length} node(s)`;
+
+        case DeltaType.NodeUpdate:
+            return `Updated node ${d.newNode.id}`;
+
+        case DeltaType.EdgeAdd:
+            return `Edge added (${d.edge.id})`;
+
+        case DeltaType.EdgeDelete:
+            return `Deleted ${d.edges.length} edge(s)`;
+
+        case DeltaType.EdgeUpdate:
+            return `Updated edge ${d.newEdge.id}`;
+
+        case DeltaType.EdgeSplit:
+            return `Split edge ${d.splittedEdge.id}`;
+
+        case DeltaType.EdgeDrop:
+            return `Dropped edge ${d.edge.id}`;
+
+        case DeltaType.Selection:
+            return `Selection changed`;
+
+        case DeltaType.Clear:
+            return `Graph cleared`;
+
+        default:
+            return "Unknown action";
+    }
+}
+
+//#endregion
 
 //#endregion
 
@@ -1088,10 +1265,10 @@ let state = State.None;
 // Camera transform
 let screenData = new ScreenData(new Vector2(), 1);
 
-let selectedNodeIndices: number[] = [];
-let selectedEdgeIndices: number[] = [];
-let mouseHoverNodeIndex: number = -1;
-let mouseHoverEdgeIndex: number = -1;
+let selectedNodeIDs: number[] = [];
+let selectedEdgeIDs: number[] = [];
+let mouseHoverNodeId: number = -1;
+let mouseHoverEdgeId: number = -1;
 
 let currentNodeColor: string;
 let labelCounter = 1;
@@ -1130,15 +1307,17 @@ function updatePhysics() {
 	const deltaTime = now  - lastFrameTime;
 	lastFrameTime = now;
 
-	for(let i = 0; i < nodes.length; i++) {
-		let force = new Vector2();
-		if ((lastMouseDownNodeIndex === i || selectedNodeIndices.contains(i)) && state == State.MoveNode)
-			continue;
-		const a = nodes[i]!;
+	for(let kv of nodes){
 		
-		for(let j = 0; j < nodes.length; j++){
-			if (a === nodes[j]) continue;
-			const delta = a.position.sub(nodes[j]!.position);
+		const a = kv[1]!;
+		let force = new Vector2();
+		if ((lastMouseDownNodeId === a.id || selectedNodeIDs.contains(a.id)) && state == State.MoveNode)
+			continue;
+		
+		for (let kv2 of nodes){
+			const b = kv2[1]!;
+			if (a.id === b.id) continue;
+			const delta = a.position.sub(b!.position);
 			let dist = delta.magnitude || 0.001;
 			const dir = delta.div(dist);
 			const falloff = 1 - (clamp(dist, 50, maxForceApplyDistance) / maxForceApplyDistance) ** 2;
@@ -1146,13 +1325,13 @@ function updatePhysics() {
 		}
 
 		for (const e of edges) {
-			if (nodes[e.nodeIndex1] === a || nodes[e.nodeIndex2] === a) {
-				const other = nodes[e.nodeIndex1] === a ? nodes[e.nodeIndex2]! : nodes[e.nodeIndex1]!;
+			if (nodes.get(e[1].node1id)!.id === a.id || nodes.get(e[1].node2id)!.id === a.id) {
+				const other = nodes.get(e[1].node1id)!.id === a.id ? nodes.get(e[1].node2id)! : nodes.get(e[1].node2id)!;
 				const delta = other.position.sub(a.position);
 				let dist = delta.magnitude || 0.001;
 				const dir = delta.div(dist);
 
-				const w = e.weight ?? 1;
+				const w = e[1].weight ?? 1;
 				const weightedIdeal = idealDist * Math.sqrt(w);
 
 				const springForce = (dist - weightedIdeal) * spring;
@@ -1168,7 +1347,7 @@ function updatePhysics() {
 			a.velocity = a.velocity.normalized.mul(maxSpeed);
 	}
 	for(const node of nodes)
-		node.position = node.position.add(node.velocity);
+		node[1].position = node[1].position.add(node[1].velocity);
 
 	draw(performance.now());
 	requestAnimationFrame(updatePhysics);
@@ -1195,91 +1374,91 @@ const mouseHoldDistanceThreshold = 1;
 let lastMousePosition: Vector2 | null = null;
 let lastMouseDownPosition: Vector2 | null = null;
 let lastMouseDownTimestamp: number = -1;
-let lastMouseDownNodeIndex: number = -1;
-let lastMouseDownEdgeIndex: number = -1;
+let lastMouseDownNodeId: number = -1;
+let lastMouseDownEdgeId: number = -1;
 
 function mousedown(event: MouseEvent) {
 	if (edgeEditorEl && (event.target as HTMLInputElement) !== edgeEditorEl)
 		return;
 	let mousePosition = getPositionRelativeToElement(event.target as Element, event.clientX, event.clientY);
-	let mouseDownNodeIndex = getNodeIndexAtPosition(nodes, mousePosition);
-	let mouseDownEdgeIndex = -1;
-	if (mouseDownNodeIndex === -1)
-		mouseDownEdgeIndex = getEdgeIndexAtPosition(edges, mousePosition)
+	let mouseDownNodeId = getNodeIDAtPosition(nodes, mousePosition);
+	let mouseDownEdgeId = -1;
+	if (mouseDownNodeId === -1)
+		mouseDownEdgeId = getEdgeIDAtPosition(edges, mousePosition)
 
 	switch (state) {
 		case State.None:
 			if (event.buttons === 1) // Left click
 			{
 				if (event.shiftKey && event.ctrlKey) {
-					if (mouseDownNodeIndex !== -1) {
-						addItemUnique(selectedNodeIndices, mouseDownNodeIndex);
-						pushSelection([mouseDownNodeIndex], [], [], [...selectedEdgeIndices]);
+					if (mouseDownNodeId !== -1) {
+						addItemUnique(selectedNodeIDs, mouseDownNodeId);
+						pushSelection([mouseDownNodeId], [], [], [...selectedEdgeIDs]);
 						state = State.MoveNode;
 					}
 				}
 				else if (event.shiftKey) {
-					if (mouseDownEdgeIndex > -1){
-						if (selectedEdgeIndices.contains(mouseDownEdgeIndex)){
-							pushSelection([], [], [], [mouseDownEdgeIndex]);
-							removeItem(selectedEdgeIndices, mouseDownEdgeIndex);
+					if (mouseDownEdgeId > -1){
+						if (selectedEdgeIDs.contains(mouseDownEdgeId)){
+							pushSelection([], [], [], [mouseDownEdgeId]);
+							removeItem(selectedEdgeIDs, mouseDownEdgeId);
 						}
 						else{
-							pushSelection( [], [...selectedNodeIndices], [mouseDownEdgeIndex], []);
-							selectedNodeIndices = [];
-							addItemUnique(selectedEdgeIndices, mouseDownEdgeIndex);
+							pushSelection( [], [...selectedNodeIDs], [mouseDownEdgeId], []);
+							selectedNodeIDs = [];
+							addItemUnique(selectedEdgeIDs, mouseDownEdgeId);
 						}
 					}
-					else if (mouseDownNodeIndex === -1) {
+					else if (mouseDownNodeId === -1) {
 						state = State.BoxSelect;
 					}
 					else {
 						if (event.altKey){
-							const connected = getConnectedNodes(mouseDownNodeIndex);
-							pushSelection(connected, [], [], [...selectedEdgeIndices])
-							connected.forEach((index) => {addItemUnique(selectedNodeIndices, index)});
+							const connected = getConnectedNodes(mouseDownNodeId);
+							pushSelection(connected, [], [], [...selectedEdgeIDs])
+							connected.forEach((id) => {addItemUnique(selectedNodeIDs, id)});
 							state = State.TreeSelect;
 						}
-						else if (!selectedNodeIndices.contains(mouseDownNodeIndex)) {
-							addItemUnique(selectedNodeIndices, mouseDownNodeIndex);
-							pushSelection([mouseDownNodeIndex], [], [], [...selectedEdgeIndices]);
+						else if (!selectedNodeIDs.contains(mouseDownNodeId)) {
+							addItemUnique(selectedNodeIDs, mouseDownNodeId);
+							pushSelection([mouseDownNodeId], [], [], [...selectedEdgeIDs]);
 							state = State.ScanSelect;
 						}
 						else {
-							removeItem(selectedNodeIndices, mouseDownNodeIndex);
-							pushSelection([], [mouseDownNodeIndex], [], []);
+							removeItem(selectedNodeIDs, mouseDownNodeId);
+							pushSelection([], [mouseDownNodeId], [], []);
 							state = State.ScanDeselect;
 						}
 					}
 				}
 				else if (event.ctrlKey) {
-					if (mouseDownNodeIndex !== -1) {
-						if (!selectedNodeIndices.contains(mouseDownNodeIndex)){
-							pushSelection([mouseDownNodeIndex], [...selectedNodeIndices], [], [...selectedEdgeIndices]);
-							selectedNodeIndices = [mouseDownNodeIndex];
+					if (mouseDownNodeId !== -1) {
+						if (!selectedNodeIDs.contains(mouseDownNodeId)){
+							pushSelection([mouseDownNodeId], [...selectedNodeIDs], [], [...selectedEdgeIDs]);
+							selectedNodeIDs = [mouseDownNodeId];
 						}
 						state = State.MoveNode;
 					}
 					else {
-						pushSelection([], [...selectedNodeIndices], [], [...selectedEdgeIndices]);
-						selectedNodeIndices = [];
-						selectedEdgeIndices = [];
+						pushSelection([], [...selectedNodeIDs], [], [...selectedEdgeIDs]);
+						selectedNodeIDs = [];
+						selectedEdgeIDs = [];
 					}
 				}
 				else if (event.altKey) {
-					const treeIndices = getConnectedNodes(mouseDownNodeIndex);
-					if (selectedNodeIndices.contains(mouseDownNodeIndex)){
+					const treeIndices = getConnectedNodes(mouseDownNodeId);
+					if (selectedNodeIDs.contains(mouseDownNodeId)){
 						pushSelection([], [...treeIndices], [], []);
-						treeIndices.forEach((index) => {removeItem(selectedNodeIndices, index)});
+						treeIndices.forEach((id) => {removeItem(selectedNodeIDs, id)});
 					}
 					else{
-						pushSelection([...treeIndices], [], [], [...selectedEdgeIndices]);
-						selectedNodeIndices = treeIndices;
+						pushSelection([...treeIndices], [], [], [...selectedEdgeIDs]);
+						selectedNodeIDs = treeIndices;
 					}
 					state = State.TreeSelect;
 				}
 				else {
-					if (mouseDownNodeIndex === -1 && mouseDownEdgeIndex === -1) {
+					if (mouseDownNodeId === -1 && mouseDownEdgeId === -1) {
 						currentNodeColor = randomHslColor();
 						state = State.DrawNode;
 					}
@@ -1288,11 +1467,9 @@ function mousedown(event: MouseEvent) {
 			else if (event.buttons === 2 && // Right click
 				!event.shiftKey) // Shift key disables context menu prevention on Firefox
 			{
-				if (mouseDownNodeIndex !== -1) {
-					pushNodeDelete([mouseDownNodeIndex], 
-						[nodes[mouseDownNodeIndex]!], 
-						getEdgeListCopy(edges));
-					deleteNode(mouseDownNodeIndex);
+				if (mouseDownNodeId !== -1) {
+					pushNodeDelete([nodes.get(mouseDownNodeId)!], getConnectedEdges(mouseDownNodeId));
+					deleteNode(mouseDownNodeId);
 					state = State.DeleteNode;
 				}
 				else
@@ -1307,8 +1484,8 @@ function mousedown(event: MouseEvent) {
 	}
 
 	lastMouseDownPosition = lastMousePosition = mousePosition;
-	lastMouseDownNodeIndex = mouseDownNodeIndex;
-	lastMouseDownEdgeIndex = mouseDownEdgeIndex;
+	lastMouseDownNodeId = mouseDownNodeId;
+	lastMouseDownEdgeId = mouseDownEdgeId;
 	lastMouseDownTimestamp = event.timeStamp;
 
 	draw(window.performance.now());
@@ -1318,20 +1495,20 @@ function mousemove(event: MouseEvent) {
 	if (edgeEditorEl && (event.target as HTMLInputElement) !== edgeEditorEl)
 		return;
 	let mousePosition = getPositionRelativeToElement(event.target as Element, event.clientX, event.clientY);
-	mouseHoverNodeIndex = getNodeIndexAtPosition(nodes, mousePosition);
-	mouseHoverEdgeIndex = getEdgeIndexAtPosition(edges, mousePosition);
+	mouseHoverNodeId = getNodeIDAtPosition(nodes, mousePosition);
+	mouseHoverEdgeId = getEdgeIDAtPosition(edges, mousePosition);
 
 	const movement = new Vector2(event.movementX, event.movementY).div(screenData.zoom);
 
 	switch (state) {
 		case State.None:
 			if (event.buttons === 1){
-				if (lastMouseDownEdgeIndex > -1 && mouseHoverEdgeIndex !== lastMouseDownEdgeIndex){
+				if (lastMouseDownEdgeId > -1 && mouseHoverEdgeId !== lastMouseDownEdgeId){
 					currentNodeColor = randomHslColor();
 					state = State.SplitEdge;
 				}
-				else if (lastMouseDownNodeIndex !== -1 &&
-					nodes[lastMouseDownNodeIndex]!.position.sub(mousePosition).magnitudeSqr > nodes[lastMouseDownNodeIndex]!.radius ** 2) {
+				else if (lastMouseDownNodeId !== -1 &&
+					nodes.get(lastMouseDownNodeId)!.position.sub(mousePosition).magnitudeSqr > nodes.get(lastMouseDownNodeId)!.radius ** 2) {
 					state = State.DrawEdge;
 				}
 			}
@@ -1343,34 +1520,32 @@ function mousemove(event: MouseEvent) {
 			break;
 
 		case State.ScanSelect:
-			if (mouseHoverNodeIndex !== -1){
-				pushSelection([mouseHoverNodeIndex], [], [] , [...selectedEdgeIndices]);
-				addItemUnique(selectedNodeIndices, mouseHoverNodeIndex);
+			if (mouseHoverNodeId !== -1){
+				pushSelection([mouseHoverNodeId], [], [] , [...selectedEdgeIDs]);
+				addItemUnique(selectedNodeIDs, mouseHoverNodeId);
 			}
 			break;
 
 		case State.ScanDeselect:
-			if (mouseHoverNodeIndex !== -1){
-				pushSelection([], [mouseHoverNodeIndex], [], []);
-				removeItem(selectedNodeIndices, mouseHoverNodeIndex);
+			if (mouseHoverNodeId !== -1){
+				pushSelection([], [mouseHoverNodeId], [], []);
+				removeItem(selectedNodeIDs, mouseHoverNodeId);
 			}
 			break;
 
 		case State.MoveNode:
-			if (lastMouseDownNodeIndex !== -1) {
-				if (selectedNodeIndices.contains(lastMouseDownNodeIndex))
-					moveNodes(movement, selectedNodeIndices);
+			if (lastMouseDownNodeId !== -1) {
+				if (selectedNodeIDs.contains(lastMouseDownNodeId))
+					moveNodes(movement, selectedNodeIDs);
 				else
-					moveNodes(movement, [lastMouseDownNodeIndex]);
+					moveNodes(movement, [lastMouseDownNodeId]);
 			}
 			break;
 
 		case State.DeleteNode:
-			if (mouseHoverNodeIndex !== -1){
-				pushNodeDelete([mouseHoverNodeIndex], 
-					[nodes[mouseHoverNodeIndex]!], 
-					getEdgeListCopy(edges));
-				deleteNode(mouseHoverNodeIndex);
+			if (mouseHoverNodeId !== -1){
+				pushNodeDelete([nodes.get(mouseHoverNodeId)!], getConnectedEdges(mouseHoverNodeId));
+				deleteNode(mouseHoverNodeId);
 				saveLastState();
 			}
 			break;
@@ -1395,42 +1570,42 @@ function mouseup(event: MouseEvent) {
 		return;
 	}
 	let mousePosition = getPositionRelativeToElement(event.target as Element, event.clientX, event.clientY);
-	let mouseUpNodeIndex = getNodeIndexAtPosition(nodes, mousePosition);
-	let mouseUpEdgeIndex = getEdgeIndexAtPosition(edges, mousePosition);
+	let mouseUpNodeId = getNodeIDAtPosition(nodes, mousePosition);
+	let mouseUpEdgeId = getEdgeIDAtPosition(edges, mousePosition);
 
 	switch (state) {
 		case State.None:
-			if (selectedNodeIndices.contains(lastMouseDownNodeIndex)){
-				pushSelection([], [lastMouseDownNodeIndex], [], [])
-				removeItem(selectedNodeIndices, lastMouseDownNodeIndex);
+			if (selectedNodeIDs.contains(lastMouseDownNodeId)){
+				pushSelection([], [lastMouseDownNodeId], [], [])
+				removeItem(selectedNodeIDs, lastMouseDownNodeId);
 			}
-			else if (lastMouseDownNodeIndex !== -1 && lastMouseDownEdgeIndex === -1  && lastMouseDownNodeIndex === mouseUpNodeIndex) {
-				const oldSelectedNodeIndices = [...selectedNodeIndices];
-				const oldSelectedEdgeIndices = [...selectedEdgeIndices];
-				selectedNodeIndices = [];
-				selectedEdgeIndices = [];
-				pushSelection([mouseUpNodeIndex], oldSelectedNodeIndices, [], oldSelectedEdgeIndices);
-				addItemUnique(selectedNodeIndices, mouseUpNodeIndex);
-			}else if (lastMouseDownEdgeIndex > -1 && lastMouseDownEdgeIndex === mouseUpEdgeIndex && !event.shiftKey){
-				if (selectedEdgeIndices.contains(lastMouseDownEdgeIndex)){
-					pushSelection([], [], [], [lastMouseDownEdgeIndex]);
-					removeItem(selectedEdgeIndices, lastMouseDownEdgeIndex);
+			else if (lastMouseDownNodeId !== -1 && lastMouseDownEdgeId === -1  && lastMouseDownNodeId === mouseUpNodeId) {
+				const oldSelectedNodeIndices = [...selectedNodeIDs];
+				const oldSelectedEdgeIndices = [...selectedEdgeIDs];
+				selectedNodeIDs = [];
+				selectedEdgeIDs = [];
+				pushSelection([mouseUpNodeId], oldSelectedNodeIndices, [], oldSelectedEdgeIndices);
+				addItemUnique(selectedNodeIDs, mouseUpNodeId);
+			}else if (lastMouseDownEdgeId > -1 && lastMouseDownEdgeId === mouseUpEdgeId && !event.shiftKey){
+				if (selectedEdgeIDs.contains(lastMouseDownEdgeId)){
+					pushSelection([], [], [], [lastMouseDownEdgeId]);
+					removeItem(selectedEdgeIDs, lastMouseDownEdgeId);
 				}
 				else{
-					const oldSelectedEdgeIndices = [...selectedEdgeIndices];
-					const oldSelectedNodeIndices = [...selectedNodeIndices];
-					selectedEdgeIndices = [];
-					selectedNodeIndices = [];
+					const oldSelectedEdgeIndices = [...selectedEdgeIDs];
+					const oldSelectedNodeIndices = [...selectedNodeIDs];
+					selectedEdgeIDs = [];
+					selectedNodeIDs = [];
 					const pos = getPositionRelativeToElement(canvas, event.clientX, event.clientY);
-					const edgeIdx = getEdgeIndexAtPosition(edges, pos);
-					const midpoint = nodes[edges[edgeIdx]!.nodeIndex1]!.position.add(nodes[edges[edgeIdx]!.nodeIndex2]!.position).div(2);
+					const edgeIdx = getEdgeIDAtPosition(edges, pos);
+					const midpoint = nodes.get(edges.get(edgeIdx)!.node1id)!.position.add(nodes.get(edges.get(edgeIdx)!.node2id)!.position).div(2);
 					if (edgeIdx !== -1 && pos.sub(midpoint).magnitudeSqr < edgeWeightEditRadius ** 2) {
 						openEdgeWeightEditor(edgeIdx);
 						return;
 					}
 
-					pushSelection([], oldSelectedNodeIndices, [mouseUpEdgeIndex], oldSelectedEdgeIndices);
-					addItemUnique(selectedEdgeIndices, lastMouseDownEdgeIndex);
+					pushSelection([], oldSelectedNodeIndices, [mouseUpEdgeId], oldSelectedEdgeIndices);
+					addItemUnique(selectedEdgeIDs, lastMouseDownEdgeId);
 				}
 			}
 			break;
@@ -1445,10 +1620,10 @@ function mouseup(event: MouseEvent) {
 				bottom: Math.max(lastMouseDownPosition.y, mousePosition.y),
 			};
 			let rect = new DOMRect(box.left, box.top, box.right - box.left, box.bottom - box.top);
-			const indices = getNodeIndicesInRect(rect);
-			pushSelection(indices, [], [], [...selectedEdgeIndices]);
-			selectedEdgeIndices = [];
-			indices.forEach(nodeIndex => addItemUnique(selectedNodeIndices, nodeIndex));
+			const indices = getNodeIDsInRect(rect);
+			pushSelection(indices, [], [], [...selectedEdgeIDs]);
+			selectedEdgeIDs = [];
+			indices.forEach(nodeId => addItemUnique(selectedNodeIDs, nodeId));
 			break;
 
 		case State.DrawNode:
@@ -1461,7 +1636,7 @@ function mouseup(event: MouseEvent) {
 					currentNodeColor,
 					"",
 				);
-			nodes.push(created);
+			nodes.set(created.id, created);
 			pushNodeAdd(created);
 			saveLastState();
 			break;
@@ -1474,46 +1649,48 @@ function mouseup(event: MouseEvent) {
 					currentNodeColor,
 					"",
 				);
-
-			const newNodeIndex = nodes.push(newNode) - 1;
 			
-			const splittedEdge = edges[lastMouseDownEdgeIndex];
-			const index1 = edges.push(new GraphEdge(splittedEdge!.nodeIndex1, newNodeIndex, splittedEdge!.edgeType, splittedEdge!.weight)) - 1;
-			const index2 = edges.push(new GraphEdge(newNodeIndex, splittedEdge!.nodeIndex2, splittedEdge!.edgeType, splittedEdge!.weight)) - 1;
-			pushEdgeSplit(splittedEdge!, newNode, edges[index1]!, edges[index2]!); 
-			removeItem(edges, splittedEdge);
+			nodes.set(newNode.id, newNode);
+			
+			const splittedEdge = edges.get(lastMouseDownEdgeId);
+			const firstEdge = new GraphEdge(splittedEdge!.node1id, newNode.id, splittedEdge!.edgeType, splittedEdge!.weight);
+			const secondEdge = new GraphEdge(newNode.id, splittedEdge!.node2id, splittedEdge!.edgeType, splittedEdge!.weight);
+			edges.set(firstEdge.id, firstEdge);
+			edges.set(secondEdge.id, secondEdge);
+			pushEdgeSplit(splittedEdge!, newNode, firstEdge, secondEdge); 
+			edges.delete(splittedEdge!.id);
 			saveLastState();
 			break;
 		case State.MoveNode:
-			if (lastMouseDownNodeIndex !== -1)
-				pushNodeMove((selectedNodeIndices.contains(lastMouseDownNodeIndex)) ? selectedNodeIndices : [lastMouseDownNodeIndex], mousePosition.sub(lastMouseDownPosition!));
+			if (lastMouseDownNodeId !== -1)
+				pushNodeMove((selectedNodeIDs.contains(lastMouseDownNodeId)) ? selectedNodeIDs : [lastMouseDownNodeId], mousePosition.sub(lastMouseDownPosition!));
 			saveLastState();
 			break
 
 		case State.DrawEdge:
-			if (lastMouseDownNodeIndex !== -1 && mouseUpNodeIndex !== -1) {
-				if (!edges.some((edge) => (edge.nodeIndex1 === lastMouseDownNodeIndex && edge.nodeIndex2 === mouseUpNodeIndex) ||
-						(edge.nodeIndex1 === mouseUpNodeIndex && edge.nodeIndex2 === lastMouseDownNodeIndex))){
-						const index = edges.push(new GraphEdge(lastMouseDownNodeIndex, mouseUpNodeIndex, EdgeType.Directional, 1)) - 1;
-						pushEdgeAdd(new GraphEdge(lastMouseDownNodeIndex, mouseUpNodeIndex, EdgeType.Directional, 1));
+			if (lastMouseDownNodeId !== -1 && mouseUpNodeId !== -1) {
+				if (!edges.some((edge) => (edge!.node1id === lastMouseDownNodeId && edge!.node2id === mouseUpNodeId) ||
+						(edge!.node1id === mouseUpNodeId && edge!.node2id === lastMouseDownNodeId))){
+						const newEdge = new GraphEdge(lastMouseDownNodeId, mouseUpNodeId, EdgeType.Directional, 1);
+						edges.set(newEdge.id, newEdge);
+						pushEdgeAdd(newEdge);
 						saveLastState();
 					}
 				else{
-					const edge = edges.find((e) => (e.nodeIndex1 === mouseUpNodeIndex && e.nodeIndex2 === lastMouseDownNodeIndex)) as GraphEdge;
+					const edge = edges.find((e) => (e!.node1id === mouseUpNodeId && e!.node2id === lastMouseDownNodeId)) as GraphEdge;
 					if (edge)
 					{
-						const index = edges.indexOf(edge);
-						const edgeCopy = structuredClone(edge);
+						const oldEdge = structuredClone(edge);
 						if (edge.edgeType === EdgeType.Directional)
-							edges[index]!.edgeType = EdgeType.Bidirectional
-						pushEdgeUpdate(index, edgeCopy, structuredClone(edge));
+							edge.edgeType = EdgeType.Bidirectional
+						pushEdgeUpdate(oldEdge, edge);
 						saveLastState();
 					}
 				}
 			}
 
 			// create new node if edge drawing released on empty space
-			else if (lastMouseDownNodeIndex !== -1)
+			else if (lastMouseDownNodeId !== -1)
 			{
 				if (lastMouseDownPosition === null)
 					throw new Error("State machine bug.");
@@ -1525,9 +1702,10 @@ function mouseup(event: MouseEvent) {
 						randomHslColor(),
 						"",
 					)
-					nodes.push(newNode);
-					const index = edges.push(new GraphEdge(lastMouseDownNodeIndex, nodes.indexOf(newNode), EdgeType.Directional, 1)) - 1;
-					pushEdgeDrop(edges[index]!, newNode);
+					nodes.set(newNode.id, newNode);
+					const edge = new GraphEdge(lastMouseDownNodeId, newNode.id, EdgeType.Directional, 1);
+					edges.set(edge.id, edge);
+					pushEdgeDrop(edge, newNode);
 					saveLastState();
 				}
 			}
@@ -1539,14 +1717,14 @@ function mouseup(event: MouseEvent) {
 				throw new Error("State machine bug.");
 			let mouseDeltaSqr = mousePosition.sub(lastMouseDownPosition).magnitudeSqr;
 			if (mouseDeltaSqr < mouseHoldDistanceThreshold ** 2){
-				pushSelection([], [...selectedNodeIndices], [], [...selectedEdgeIndices]);
-				selectedNodeIndices = [];
+				pushSelection([], [...selectedNodeIDs], [], [...selectedEdgeIDs]);
+				selectedNodeIDs = [];
 			}
 			saveLastState();
 			break;
 	}
 
-	lastMouseDownNodeIndex = -1;
+	lastMouseDownNodeId = -1;
 	state = State.None;
 	draw(window.performance.now());
 }
@@ -1608,18 +1786,18 @@ class TouchInfo {
 		public touchPosition: Vector2,
 		public touchClientPosition: Vector2,
 		public touchDelta: Vector2,
-		public touchStartNodeIndex: number,
-		public touchOnNodeIndex: number,
-		public touchStartEdgeIndex: number,
-		public touchOnEdgeIndex: number,
+		public touchStartNodeId: number,
+		public touchOnNodeId: number,
+		public touchStartEdgeId: number,
+		public touchOnEdgeId: number,
 		public touchStartTimeStamp: number,
 		public touchTimeStamp: number) { }
 }
 
 let touchInfos = new Map<number, TouchInfo>();
 
-let lastSingleTouchStartNodeIndex = -1;
-let lastSingleTouchStartEdgeIndex = -1;
+let lastSingleTouchStartNodeId = -1;
+let lastSingleTouchStartEdgeId = -1;
 let lastSingleTouchStartPosition: Vector2 | null = null;
 let lastSingleTouchPosition: Vector2 | null = null;
 let lastSingleTouchStartTimestamp: number = -1;
@@ -1633,10 +1811,10 @@ function touchstart(event: TouchEvent) {
 	for (let i = 0; i < event.changedTouches.length; i++) {
 		let touch = event.changedTouches[i]!;
 		let touchPosition = getPositionRelativeToElement(touch.target as Element, touch.clientX, touch.clientY);
-		let touchStartNodeIndex = getNodeIndexAtPosition(nodes, touchPosition);
-		let touchStartEdgeIndex = -1;
-		if (touchStartNodeIndex === -1)
-			touchStartEdgeIndex = getEdgeIndexAtPosition(edges, touchPosition);
+		let touchStartNodeId = getNodeIDAtPosition(nodes, touchPosition);
+		let touchStartEdgeId = -1;
+		if (touchStartNodeId === -1)
+			touchStartEdgeId = getEdgeIDAtPosition(edges, touchPosition);
 
 		touchInfos.set(
 			touch.identifier,
@@ -1645,10 +1823,10 @@ function touchstart(event: TouchEvent) {
 				touchPosition,
 				new Vector2(touch.clientX, touch.clientY),
 				new Vector2,
-				touchStartNodeIndex,
-				touchStartNodeIndex,
-				touchStartEdgeIndex,
-				touchStartEdgeIndex,
+				touchStartNodeId,
+				touchStartNodeId,
+				touchStartEdgeId,
+				touchStartEdgeId,
 				event.timeStamp,
 				event.timeStamp,
 			)
@@ -1665,9 +1843,9 @@ function touchstart(event: TouchEvent) {
 					if (event.timeStamp - lastSingleTouchStartTimestamp < touchDoubleTapTimeout && doubleTapDistanceSqr < touchDoubleTapDistanceThreshold ** 2) {
 						doubleTap = true;
 						tryVibrate([30, 30, 30]);
-						if (touchInfo.touchStartNodeIndex !== -1) {
-							pushNodeDelete([touchInfo.touchStartNodeIndex], [nodes[touchInfo.touchStartNodeIndex]!], getEdgeListCopy(edges))
-							deleteNode(touchInfo.touchStartNodeIndex);
+						if (touchInfo.touchStartNodeId !== -1) {
+							pushNodeDelete([nodes.get(touchInfo.touchStartNodeId)!], getConnectedEdges(touchInfo.touchStartNodeId))
+							deleteNode(touchInfo.touchStartNodeId);
 							state = State.DeleteNode;
 							saveLastState();
 						}
@@ -1679,10 +1857,10 @@ function touchstart(event: TouchEvent) {
 							const it = touchInfos.values().next();
 							if (it.done || !it.value) return;
 							const touchInfo = it.value as TouchInfo;
-							if (touchInfo.touchStartNodeIndex !== -1) {
-								if (!selectedNodeIndices.contains(touchInfo.touchStartNodeIndex)){
-									pushSelection([touchInfo.touchStartNodeIndex], [...selectedNodeIndices], [], [...selectedEdgeIndices]);
-									selectedNodeIndices = [touchInfo.touchStartNodeIndex];
+							if (touchInfo.touchStartNodeId !== -1) {
+								if (!selectedNodeIDs.contains(touchInfo.touchStartNodeId)){
+									pushSelection([touchInfo.touchStartNodeId], [...selectedNodeIDs], [], [...selectedEdgeIDs]);
+									selectedNodeIDs = [touchInfo.touchStartNodeId];
 								}
 								state = State.MoveNode;
 							}
@@ -1694,8 +1872,8 @@ function touchstart(event: TouchEvent) {
 				}
 				break;
 		}
-		lastSingleTouchStartNodeIndex = touchInfo.touchStartNodeIndex;
-		lastSingleTouchStartEdgeIndex = touchInfo.touchStartEdgeIndex;
+		lastSingleTouchStartNodeId = touchInfo.touchStartNodeId;
+		lastSingleTouchStartEdgeId = touchInfo.touchStartEdgeId;
 		lastSingleTouchStartPosition = touchInfo.touchStartPosition;
 		lastSingleTouchPosition = touchInfo.touchPosition;
 		lastSingleTouchStartTimestamp = touchInfo.touchStartTimeStamp;
@@ -1721,8 +1899,8 @@ function touchmove(event: TouchEvent) {
 	for (let i = 0; i < event.changedTouches.length; i++) {
 		let touch = event.changedTouches[i]!;
 		let touchPosition = getPositionRelativeToElement(touch.target as Element, touch.clientX, touch.clientY);
-		let touchOnNodeIndex = getNodeIndexAtPosition(nodes, touchPosition);
-		let touchOnEdgeIndex = getEdgeIndexAtPosition(edges, touchPosition);
+		let touchOnNodeId = getNodeIDAtPosition(nodes, touchPosition);
+		let touchOnEdgeId = getEdgeIDAtPosition(edges, touchPosition);
 		// Update touch infos
 		let touchInfo = touchInfos.get(touch.identifier);
 		if (touchInfo === undefined)
@@ -1737,8 +1915,8 @@ function touchmove(event: TouchEvent) {
 		}
 		touchInfo.touchClientPosition = new Vector2(touch.clientX, touch.clientY);
 		touchInfo.touchPosition = touchPosition;
-		touchInfo.touchOnNodeIndex = touchOnNodeIndex;
-		touchInfo.touchOnEdgeIndex = touchOnEdgeIndex;
+		touchInfo.touchOnNodeId = touchOnNodeId;
+		touchInfo.touchOnEdgeId = touchOnEdgeId;
 		touchInfo.touchTimeStamp = event.timeStamp;
 	}
 	if (!anyTouchMoved)
@@ -1750,10 +1928,10 @@ function touchmove(event: TouchEvent) {
 		let touchInfo = touchInfos.values().next().value as TouchInfo;
 		switch (state) {
 			case State.None:
-				if (touchInfo.touchStartNodeIndex !== -1)
+				if (touchInfo.touchStartNodeId !== -1)
 					state = State.DrawEdge;
-				else if (touchInfo.touchStartEdgeIndex !== -1){
-					if (touchInfo.touchOnEdgeIndex !== touchInfo.touchStartEdgeIndex){
+				else if (touchInfo.touchStartEdgeId !== -1){
+					if (touchInfo.touchOnEdgeId !== touchInfo.touchStartEdgeId){
 						currentNodeColor = randomHslColor();
 						state = State.SplitEdge;
 					}
@@ -1765,17 +1943,17 @@ function touchmove(event: TouchEvent) {
 				break;
 
 			case State.MoveNode:
-				if (selectedNodeIndices.contains(lastSingleTouchStartNodeIndex))
-					moveNodes(touchInfo.touchDelta.div(screenData.zoom), selectedNodeIndices);
+				if (selectedNodeIDs.contains(lastSingleTouchStartNodeId))
+					moveNodes(touchInfo.touchDelta.div(screenData.zoom), selectedNodeIDs);
 				else
-					moveNodes(touchInfo.touchDelta.div(screenData.zoom), [lastSingleTouchStartNodeIndex]);
+					moveNodes(touchInfo.touchDelta.div(screenData.zoom), [lastSingleTouchStartNodeId]);
 				saveLastState();
 				break;
 
 			case State.DeleteNode:
-				if (touchInfo.touchOnNodeIndex !== -1){
-					pushNodeDelete([touchInfo.touchOnNodeIndex], [nodes[touchInfo.touchOnNodeIndex]!], getEdgeListCopy(edges));
-					deleteNode(touchInfo.touchOnNodeIndex);
+				if (touchInfo.touchOnNodeId !== -1){
+					pushNodeDelete([nodes.get(touchInfo.touchOnNodeId)!], getConnectedEdges(touchInfo.touchOnNodeId));
+					deleteNode(touchInfo.touchOnNodeId);
 					saveLastState();
 				}
 				break;
@@ -1839,23 +2017,23 @@ function touchend(event: TouchEvent) {
 		switch (state) {
 			// @ts-expect-error
 			case State.None:
-				if (touchInfo.touchStartNodeIndex !== -1) {
-					if (!removeItem(selectedNodeIndices, touchInfo.touchStartNodeIndex)){
-						pushSelection([touchInfo.touchStartNodeIndex], [], [], [...selectedEdgeIndices]);
-						addItemUnique(selectedNodeIndices, touchInfo.touchStartNodeIndex);
+				if (touchInfo.touchStartNodeId !== -1) {
+					if (!removeItem(selectedNodeIDs, touchInfo.touchStartNodeId)){
+						pushSelection([touchInfo.touchStartNodeId], [], [], [...selectedEdgeIDs]);
+						addItemUnique(selectedNodeIDs, touchInfo.touchStartNodeId);
 					}
 					else
-						pushSelection([], [touchInfo.touchStartNodeIndex], [], [...selectedEdgeIndices]);
-					selectedEdgeIndices = [];
+						pushSelection([], [touchInfo.touchStartNodeId], [], [...selectedEdgeIDs]);
+					selectedEdgeIDs = [];
 					break;
 				}
-				else if (touchInfo.touchStartEdgeIndex !== -1){
+				else if (touchInfo.touchStartEdgeId !== -1){
 					const pos = touchInfo.touchPosition;
-					const edgeIdx = getEdgeIndexAtPosition(edges, pos);
+					const edgeIdx = getEdgeIDAtPosition(edges, pos);
 					if (edgeIdx !== -1) {
-						const edge = edges[edgeIdx]!;
-						const midpoint = nodes[edge.nodeIndex1]!.position
-						.add(nodes[edge.nodeIndex2]!.position)
+						const edge = edges.get(edgeIdx)!;
+						const midpoint = nodes.get(edge.node1id)!.position
+						.add(nodes.get(edge.node2id)!.position)
 						.div(2);
 						
 						if (pos.sub(midpoint).magnitudeSqr < edgeWeightEditRadius ** 2) {
@@ -1863,13 +2041,13 @@ function touchend(event: TouchEvent) {
 							return;
 						}
 					}
-					if (!removeItem(selectedEdgeIndices, touchInfo.touchStartEdgeIndex)){
-						pushSelection([], [...selectedNodeIndices], [touchInfo.touchStartEdgeIndex], []);
-						addItemUnique(selectedEdgeIndices, touchInfo.touchStartEdgeIndex);
+					if (!removeItem(selectedEdgeIDs, touchInfo.touchStartEdgeId)){
+						pushSelection([], [...selectedNodeIDs], [touchInfo.touchStartEdgeId], []);
+						addItemUnique(selectedEdgeIDs, touchInfo.touchStartEdgeId);
 					}
 					else
-						pushSelection([], [...selectedNodeIndices], [], [touchInfo.touchStartEdgeIndex]);
-					selectedNodeIndices = [];
+						pushSelection([], [...selectedNodeIDs], [], [touchInfo.touchStartEdgeId]);
+					selectedNodeIDs = [];
 					break;
 				}
 				currentNodeColor = randomHslColor();
@@ -1878,38 +2056,38 @@ function touchend(event: TouchEvent) {
 				if (lastSingleTouchStartPosition === null)
 					throw new Error("State machine bug.");
 				let nodeRadius = touchInfo.touchPosition.sub(lastSingleTouchStartPosition).magnitude;
-				const index = nodes.push(
-					new GraphNode(
+				const node = new GraphNode(
 						lastSingleTouchStartPosition,
 						nodeRadiusCurve(nodeRadius),
 						currentNodeColor,
-						"",
-					)
-				) - 1;
-				pushNodeAdd(nodes[index]!);
+						""
+					);
+				nodes.set(node.id, node);
+				pushNodeAdd(node);
 				saveLastState();
 				break;
 
 			case State.DrawEdge:
-				if (lastSingleTouchStartNodeIndex !== -1 && touchInfo.touchOnNodeIndex !== -1) {
-					if (!edges.some((edge) => edge.nodeIndex1 === lastSingleTouchStartNodeIndex && edge.nodeIndex2 === touchInfo.touchOnNodeIndex)){
-						let index = edges.push(new GraphEdge(lastSingleTouchStartNodeIndex, touchInfo.touchOnNodeIndex, EdgeType.Directional, 1)) - 1;
-						pushEdgeAdd(edges[index]!);
+				if (lastSingleTouchStartNodeId !== -1 && touchInfo.touchOnNodeId !== -1) {
+					if (!edges.some((edge) => edge!.node1id === lastSingleTouchStartNodeId && edge!.node2id === touchInfo.touchOnNodeId)){
+						const edge = new GraphEdge(lastSingleTouchStartNodeId, touchInfo.touchOnNodeId, EdgeType.Directional, 1);
+						edges.set(edge.id, edge);
+						pushEdgeAdd(edge);
 						saveLastState();
 					}
 					else{
-						const edge = edges.find((e) => (e.nodeIndex1 === touchInfo.touchOnNodeIndex && e.nodeIndex2 === lastSingleTouchStartNodeIndex)) as GraphEdge;
+						const edge = edges.find((e) => (e!.node1id === touchInfo.touchOnNodeId && e!.node2id === lastSingleTouchStartNodeId)) as GraphEdge;
 						if (edge)
 						{
-							const index = edges.indexOf(edge);
+							const oldEdge = GraphEdge.copyFromEdge(edge);
 							if (edge.edgeType === EdgeType.Directional)
-								edges[index]!.edgeType = EdgeType.Bidirectional
-							pushEdgeUpdate(index, GraphEdge.copyFromEdge(edge), GraphEdge.copyFromEdge(edges[index]!));
+								edge.edgeType = EdgeType.Bidirectional
+							pushEdgeUpdate(oldEdge, edge);
 							saveLastState();
 						}
 					}
 				}
-				else if (lastSingleTouchStartNodeIndex !== -1)
+				else if (lastSingleTouchStartNodeId !== -1)
 				{
 					if (lastSingleTouchPosition === null)
 						throw new Error("State machine bug.");
@@ -1919,9 +2097,10 @@ function touchend(event: TouchEvent) {
 						randomHslColor(),
 						"",
 					)
-					let nodeIndex = nodes.push(newNode) - 1;
-					let index = edges.push(new GraphEdge(lastSingleTouchStartNodeIndex, nodeIndex, EdgeType.Directional, 1)) - 1;
-					pushEdgeDrop(edges[index]!, newNode);
+					nodes.set(newNode.id, newNode);
+					const edge = new GraphEdge(lastSingleTouchStartNodeId, newNode.id, EdgeType.Directional, 1);
+					edges.set(edge.id, edge);
+					pushEdgeDrop(edge, newNode);
 					saveLastState();
 				}
 				break;
@@ -1934,14 +2113,15 @@ function touchend(event: TouchEvent) {
 						currentNodeColor,
 						"",
 					);
+				nodes.set(newNode.id, newNode);
+				const splittedEdge = edges.get(touchInfo.touchStartEdgeId);
+				const edge1 = new GraphEdge(splittedEdge!.node1id, newNode.id, splittedEdge!.edgeType, splittedEdge!.weight);
+				const edge2 = new GraphEdge(newNode.id, splittedEdge!.node2id, splittedEdge!.edgeType, splittedEdge!.weight);
 
-				const newNodeIndex = nodes.push(newNode) - 1;
-				const splittedEdge = edges[touchInfo.touchStartEdgeIndex];
-				const i1 = edges.push(new GraphEdge(splittedEdge!.nodeIndex1, newNodeIndex, splittedEdge!.edgeType, splittedEdge!.weight)) - 1;
-				const i2 = edges.push(new GraphEdge(newNodeIndex, splittedEdge!.nodeIndex2, splittedEdge!.edgeType, splittedEdge!.weight)) - 1;
-				pushEdgeSplit(GraphEdge.copyFromEdge(splittedEdge!), newNode, edges[i1]!, edges[i2]!);
-
-				removeItem(edges, splittedEdge);
+				edges.set(edge1.id, edge1);
+				edges.set(edge2.id, edge2);
+				pushEdgeSplit(splittedEdge!, newNode, edge1!, edge2!);
+				edges.delete(splittedEdge!.id);
 				saveLastState();
 				break;
 			case State.BoxSelect:
@@ -1955,16 +2135,16 @@ function touchend(event: TouchEvent) {
 				};
 				let rect = new DOMRect(box.left, box.top, box.right - box.left, box.top - box.bottom);
 				let indices: number[] = [];
-				for(let i of getNodeIndicesInRect(rect)){
-					if (addItemUnique(selectedNodeIndices, i))
+				for(let i of getNodeIDsInRect(rect)){
+					if (addItemUnique(selectedNodeIDs, i))
 						indices.push(i);
 				}
-				getNodeIndicesInRect(rect).forEach(nodeIndex => addItemUnique(selectedNodeIndices, nodeIndex));
-				pushSelection([...indices], [], [], [...selectedEdgeIndices]);
-				selectedEdgeIndices = [];
+				getNodeIDsInRect(rect).forEach(nodeId => addItemUnique(selectedNodeIDs, nodeId));
+				pushSelection([...indices], [], [], [...selectedEdgeIDs]);
+				selectedEdgeIDs = [];
 				break;
 			case State.MoveNode:
-				pushNodeMove(selectedNodeIndices, touchInfo.touchPosition.sub(touchInfo.touchStartPosition));
+				pushNodeMove(selectedNodeIDs, touchInfo.touchPosition.sub(touchInfo.touchStartPosition));
 				break;
 		}
 	}
@@ -1975,11 +2155,11 @@ function touchend(event: TouchEvent) {
 		state = State.None;
 	}
 	else if (touchInfos.size === 1){
-		if (lastSingleTouchStartNodeIndex !== -1){
-			const indices = getConnectedNodes(lastSingleTouchStartNodeIndex);
-			pushSelection([...indices], [], [], [...selectedEdgeIndices]);
-			selectedNodeIndices = indices;
-			selectedEdgeIndices = [];
+		if (lastSingleTouchStartNodeId !== -1){
+			const indices = getConnectedNodes(lastSingleTouchStartNodeId);
+			pushSelection([...indices], [], [], [...selectedEdgeIDs]);
+			selectedNodeIDs = indices;
+			selectedEdgeIDs = [];
 		}
 	}
 	else if (touchInfos.size === 2) {
@@ -2010,8 +2190,8 @@ function draw(timeStamp: number) {
 	if (Modernizr.touchevents) {
 		lastMouseDownPosition	= lastSingleTouchStartPosition;
 		lastMousePosition		= lastSingleTouchPosition;
-		lastMouseDownNodeIndex	= lastSingleTouchStartNodeIndex;
-		lastMouseDownEdgeIndex	= lastSingleTouchStartEdgeIndex;
+		lastMouseDownNodeId		= lastSingleTouchStartNodeId;
+		lastMouseDownEdgeId		= lastSingleTouchStartEdgeId;
 	}
 
 	let f: AnimFrame | null = null;
@@ -2022,9 +2202,10 @@ function draw(timeStamp: number) {
 		prog = timeline.playhead - idx;
 	}
 
-	const HN = f ? f.highlightedNodeIndices : highlightedNodeIndices;
-	const HE = f ? f.highlightedEdgeIndices : highlightedEdgeIndices;
-	const AE = f ? f.animatedEdgeIndices   : [];
+	const HN = f ? f.highlightedNodeIndices	: highlightedNodeIndices;
+	const HE = f ? f.highlightedEdgeIndices	: highlightedEdgeIndices;
+	const AE = f ? f.animatedEdgeIndices	: [];
+	const AN = f ? f.animatedNodeIDs		: [];
 
 	ctx.save();
 	try {
@@ -2045,17 +2226,17 @@ function draw(timeStamp: number) {
 			ctx.strokeStyle = "gray";
 			ctx.lineWidth = edgeThickness;
 
-			if (state === State.DrawEdge && lastMouseDownNodeIndex !== -1) {
+			if (state === State.DrawEdge && lastMouseDownNodeId !== -1) {
 				ctx.beginPath();
-				ctx.moveTo(nodes[lastMouseDownNodeIndex]!.position.x, nodes[lastMouseDownNodeIndex]!.position.y);
+				ctx.moveTo(nodes.get(lastMouseDownNodeId)!.position.x, nodes.get(lastMouseDownNodeId)!.position.y);
 				ctx.lineTo(lastMousePosition.x, lastMousePosition.y);
 				ctx.stroke();
 			}
 
 			if (state === State.SplitEdge) {
-				const e = edges[lastMouseDownEdgeIndex];
+				const e = edges.get(lastMouseDownEdgeId);
 				if (e) {
-					const n1 = nodes[e.nodeIndex1], n2 = nodes[e.nodeIndex2];
+					const n1 = nodes.get(e.node1id), n2 = nodes.get(e.node2id);
 					if (n1 && n2) {
 						ctx.beginPath();
 						ctx.moveTo(n1.position.x, n1.position.y);
@@ -2072,16 +2253,16 @@ function draw(timeStamp: number) {
 		const camRight	= (canvas.width  - screenData.offset.x) / screenData.zoom;
 		const camBottom	= (canvas.height - screenData.offset.y) / screenData.zoom;
 
-		for (let i=0;i<edges.length;i++) {
+		for (let kv of edges){
 
-			const e = edges[i];
+			const e = kv[1]!;
 			if (!e) continue;
 
-			const n1 = nodes[e.nodeIndex1];
-			const n2 = nodes[e.nodeIndex2];
+			const n1 = nodes.get(e.node1id);
+			const n2 = nodes.get(e.node2id);
 			if (!n1 || !n2) continue;
 
-			if (state === State.SplitEdge && i === lastMouseDownEdgeIndex) continue;
+			if (state === State.SplitEdge && e.id === lastMouseDownEdgeId) continue;
 			if (!isEdgeVisible(e, camLeft, camRight, camTop, camBottom)) continue;
 
 			if (e.edgeType === EdgeType.Directional) {
@@ -2095,7 +2276,7 @@ function draw(timeStamp: number) {
 					const L = mid.rotatedAround( 30, tail);
 					const R = mid.rotatedAround(-30, tail);
 
-					ctx.fillStyle = (selectedEdgeIndices.contains(i)) ? "blue" : "gray";
+					ctx.fillStyle = (selectedEdgeIDs.contains(e.id)) ? "blue" : "gray";
 					ctx.beginPath();
 					ctx.moveTo(tail.x, tail.y);
 					ctx.lineTo(L.x, L.y);
@@ -2104,7 +2285,7 @@ function draw(timeStamp: number) {
 				}
 			}
 
-			ctx.strokeStyle = (selectedEdgeIndices.contains(i)) ? "blue" : "gray";
+			ctx.strokeStyle = (selectedEdgeIDs.contains(e.id)) ? "blue" : "gray";
 			ctx.lineWidth = edgeThickness;
 			ctx.beginPath();
 			ctx.moveTo(n1.position.x, n1.position.y);
@@ -2130,9 +2311,9 @@ function draw(timeStamp: number) {
 		ctx.lineWidth = edgeThickness * 2;
 
 		for (const ei of HE) {
-			const e = edges[ei];
+			const e = edges.get(ei);
 			if (!e) continue;
-			const n1 = nodes[e.nodeIndex1], n2 = nodes[e.nodeIndex2];
+			const n1 = nodes.get(e.node1id), n2 = nodes.get(e.node2id);
 			if (!n1 || !n2) continue;
 
 			ctx.beginPath();
@@ -2141,12 +2322,10 @@ function draw(timeStamp: number) {
 			ctx.stroke();
 		}
 
-		for (let i=0;i<edges.length;i++) {
-			if (!AE.contains(i)) continue;
-
-			const e = edges[i];
+		for (let [k, e] of edges){
 			if (!e) continue;
-			const n1 = nodes[e.nodeIndex1], n2 = nodes[e.nodeIndex2];
+			if (!AE.contains(e.id)) continue;
+			const n1 = nodes.get(e.node1id), n2 = nodes.get(e.node2id);
 			if (!n1 || !n2) continue;
 
 			const v  = n2.position.sub(n1.position);
@@ -2169,8 +2348,8 @@ function draw(timeStamp: number) {
 		ctx.textAlign = "center";
 		ctx.textBaseline = "middle";
 
-		for (let i=0;i<nodes.length;i++) {
-			const node = nodes[i]!;
+		for(let kv of nodes){
+			const node = kv[1]!;
 
 			if (
 				node.position.x + node.radius < camLeft ||
@@ -2185,8 +2364,8 @@ function draw(timeStamp: number) {
 			ctx.fill();
 
 			let labelToDraw = node.label;
-			if (f && f.labels && f.labels[i] !== undefined)
-				labelToDraw = f.labels[i]!;
+			if (f && f.labels && f.labels[node.id] !== undefined)
+				labelToDraw = f.labels[node.id]!;
 
 			ctx.fillStyle = "white";
 			ctx.fillText(labelToDraw, node.position.x, node.position.y);
@@ -2210,8 +2389,8 @@ function draw(timeStamp: number) {
 		ctx.strokeStyle = "gray";
 		ctx.lineWidth = 4;
 
-		for (const ni of selectedNodeIndices) {
-			const n = nodes[ni];
+		for (const ni of selectedNodeIDs) {
+			const n = nodes.get(ni);
 			if (!n) continue;
 
 			ctx.beginPath();
@@ -2235,14 +2414,24 @@ function draw(timeStamp: number) {
 		ctx.lineWidth = 4;
 
 		for (const ni of HN) {
-			const n = nodes[ni];
+			const n = nodes.get(ni);
 			if (!n) continue;
 
 			ctx.beginPath();
 			ctx.arc(n.position.x, n.position.y, n.radius, 0, 360);
 			ctx.stroke();
 		}
-
+		if (AN){
+			for (const ni of AN){
+				const n = nodes.get(ni);
+				if (!n) continue;
+				const angle = prog * 2 * Math.PI;
+	
+				ctx.beginPath();
+				ctx.arc(n.position.x, n.position.y, n.radius, 0, angle);
+				ctx.stroke();
+			}
+		}
 	}
 	finally { ctx.restore(); }
 
