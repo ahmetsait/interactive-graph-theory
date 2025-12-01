@@ -2525,13 +2525,14 @@ function draw(timeStamp: number) {
 			ctx.stroke();
 		}
 		if (AN){
-			for (const ni of AN){
-				const n = nodes.get(ni);
+			for (const anim of AN){
+				const n = nodes.get(anim.id);
 				if (!n) continue;
-				const angle = prog * 2 * Math.PI;
+
+				const angle = anim.angle + prog * 2 * Math.PI;
 	
 				ctx.beginPath();
-				ctx.arc(n.position.x, n.position.y, n.radius, 0, angle);
+				ctx.arc(n.position.x, n.position.y, n.radius, anim.angle, angle);
 				ctx.stroke();
 			}
 		}

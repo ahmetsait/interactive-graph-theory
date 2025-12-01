@@ -3,7 +3,7 @@ class AnimFrame {
 		public highlightedNodeIndices: number[] = [],
 		public highlightedEdgeIndices: number[] = [],
 		public animatedEdgeIndices: number[] = [],
-		public animatedNodeIDs: number[] = [],
+		public animatedNodeIDs: { id: number, angle: number }[] = [],
 		public labels?: { [nodeIndex: number]: string }
 	) {}
 }

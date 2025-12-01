@@ -59,7 +59,7 @@ async function dijkstra() {
 
 	distances.set(start, 0);
 
-	recordFrame(new AnimFrame([], [], [], [start], makeLabelSnapshot()));
+	recordFrame(new AnimFrame([], [], [], [{id: start, angle:-Math.PI / 2}], makeLabelSnapshot()));
 	highlightedNodeIndices.push(start);
 
 	while (true) {
@@ -99,7 +99,10 @@ async function dijkstra() {
 			if (cand < old) distances.set(v, cand);
 
 			if (!visited.has(v)) {
-				recordFrame(new AnimFrame([...highlightedNodeIndices], [...highlightedEdgeIndices], [], [v], makeLabelSnapshot()));
+				const fromPos = nodes.get(v)!.position;
+				const toPos   = nodes.get(u)!.position;
+				const angle   = Math.atan2(toPos.y - fromPos.y, toPos.x - fromPos.x);
+				recordFrame(new AnimFrame([...highlightedNodeIndices], [...highlightedEdgeIndices], [], [{id: v, angle:angle}], makeLabelSnapshot()));
 				addItemUnique(highlightedNodeIndices, v);
 			}
 		}
@@ -111,7 +114,6 @@ async function dijkstra() {
 	highlightedEdgeIndices = [];
 	draw(performance.now());
 }
-
 
 async function BFS(){
 	toggleTimelineVisibility(true);
@@ -138,7 +140,7 @@ async function BFS(){
 		let currentNodeIndex = queue.shift() as number;
 		let added = !highlightedEdgeIndices.contains(currentNodeIndex);
 		if (added){
-			recordFrame(new AnimFrame([...highlightedNodeIndices], [...highlightedEdgeIndices], [], [currentNodeIndex]));
+			recordFrame(new AnimFrame([...highlightedNodeIndices], [...highlightedEdgeIndices], [], [{id: currentNodeIndex, angle:-Math.PI / 2}]));
 			addItemUnique(highlightedNodeIndices, currentNodeIndex)
 		}
 		for (const nodeIndex of connections.get(currentNodeIndex) ?? new Set<number>()) {
@@ -153,7 +155,10 @@ async function BFS(){
 				}
 				let added = !highlightedEdgeIndices.contains(nodeIndex);
 				if (added){
-					recordFrame(new AnimFrame([...highlightedNodeIndices], [...highlightedEdgeIndices], [], [nodeIndex]));
+					const fromPos = nodes.get(nodeIndex)!.position;
+					const toPos   = nodes.get(currentNodeIndex)!.position;
+					const angle   = Math.atan2(toPos.y - fromPos.y, toPos.x - fromPos.x);
+					recordFrame(new AnimFrame([...highlightedNodeIndices], [...highlightedEdgeIndices], [], [{id: nodeIndex, angle:angle}]));
 					addItemUnique(highlightedNodeIndices, nodeIndex);
 				}
 				queue.push(nodeIndex);
@@ -213,12 +218,18 @@ async function DFS() {
 
 		let added = !highlightedNodeIndices.contains(current);
 		if (added) {
+			let angle = -Math.PI / 2;
+			if (from !== null && current !== null){
+				const fromPos = nodes.get(current)!.position;
+				const toPos   = nodes.get(from)!.position;
+				angle   	  = Math.atan2(toPos.y - fromPos.y, toPos.x - fromPos.x);
+			}
 			recordFrame(
 				new AnimFrame(
 					[...highlightedNodeIndices],
 					[...highlightedEdgeIndices],
 					[],
-					[current]
+					[{id: current, angle:angle}]
 				)
 			);
 			addItemUnique(highlightedNodeIndices, current);
