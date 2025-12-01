@@ -2367,14 +2367,13 @@ function draw(timeStamp: number) {
 
 			if (state === State.SplitEdge && e.id === lastMouseDownEdgeId) continue;
 			if (!isEdgeVisible(e, camLeft, camRight, camTop, camBottom)) continue;
-
+			
+			const v = n2.position.sub(n1.position);
+			const len = v.magnitude;
+			const dir = v.div(len);
+			let tail = n2.position.sub(dir.mul(n2.radius));
 			if (e.edgeType === EdgeType.Directional) {
-				const v = n2.position.sub(n1.position);
-				const len = v.magnitude;
-
 				if (len > 0.001) {
-					const dir = v.div(len);
-					const tail = n2.position.sub(dir.mul(n2.radius));
 					const mid  = tail.sub(dir.mul(10));
 					const L = mid.rotatedAround( 30, tail);
 					const R = mid.rotatedAround(-30, tail);
@@ -2387,20 +2386,25 @@ function draw(timeStamp: number) {
 					ctx.fill();
 				}
 			}
-
+			
+			const mid = n1.position.add(n2.position).div(2);
+			const p1 = mid.add(dir.mul(edgeWeightEditRadius));
+			const p2 = mid.add(dir.mul(-edgeWeightEditRadius));
 			ctx.strokeStyle = (selectedEdgeIDs.contains(e.id)) ? "blue" : "gray";
 			ctx.lineWidth = edgeThickness;
-			ctx.beginPath();
-			ctx.moveTo(n1.position.x, n1.position.y);
-			ctx.lineTo(n2.position.x, n2.position.y);
-			ctx.stroke();
-
+			if (e.edgeType === EdgeType.Directional){
+				tail = tail.sub(dir.mul(5));
+			}
 			if (e.weight !== null) {
-				const mid = n1.position.add(n2.position).div(2);
-				ctx.fillStyle = "white";
+
 				ctx.beginPath();
-				ctx.arc(mid.x, mid.y, edgeWeightEditRadius, 0, 360);
-				ctx.fill();
+				ctx.moveTo(n1.position.x, n1.position.y);
+				ctx.lineTo(p2.x, p2.y);
+				ctx.moveTo(p1.x, p1.y);
+				ctx.lineTo(tail.x, tail.y);
+				ctx.stroke();
+				ctx.strokeStyle = "white";
+				ctx.lineWidth = edgeThickness + 1;
 
 				ctx.fillStyle = "blue";
 				ctx.font = "bold 15px sans-serif";
@@ -2408,6 +2412,14 @@ function draw(timeStamp: number) {
 				ctx.textBaseline = "middle";
 				ctx.fillText(e.weight!.toString(), mid.x, mid.y);
 			}
+			else{
+				ctx.beginPath();
+				ctx.moveTo(n1.position.x, n1.position.y);
+				ctx.lineTo(tail.x, tail.y);
+				ctx.stroke();
+
+			}
+
 		}
 
 		ctx.strokeStyle = "red";
