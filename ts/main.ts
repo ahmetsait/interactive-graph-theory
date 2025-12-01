@@ -1420,15 +1420,13 @@ function updatePhysics() {
 	const deltaTime = now  - lastFrameTime;
 	lastFrameTime = now;
 
-	for(let kv of nodes){
+	for(let [, a] of nodes){
 		
-		const a = kv[1]!;
 		let force = new Vector2();
 		if ((lastMouseDownNodeId === a.id || selectedNodeIDs.contains(a.id)) && state == State.MoveNode)
 			continue;
 		
-		for (let kv2 of nodes){
-			const b = kv2[1]!;
+		for (let [, b] of nodes){
 			if (a.id === b.id) continue;
 			const delta = a.position.sub(b!.position);
 			let dist = delta.magnitude || 0.001;
@@ -1437,7 +1435,7 @@ function updatePhysics() {
 			force = force.add(dir.mul(repulsion * falloff / (dist * dist)));
 		}
 
-		for (const [id, edge] of edges) {
+		for (const [, edge] of edges) {
 			if (edge.node1id === a.id || edge.node2id === a.id) {
 				const other = edge.node1id === a.id ? nodes.get(edge.node2id)! : nodes.get(edge.node1id)!;
 				const delta = other.position.sub(a.position);

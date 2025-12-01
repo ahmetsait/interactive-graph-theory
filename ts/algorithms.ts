@@ -138,7 +138,7 @@ async function BFS(){
 
 	while (queue.length > 0){
 		let currentNodeIndex = queue.shift() as number;
-		let added = !highlightedEdgeIndices.contains(currentNodeIndex);
+		let added = !highlightedNodeIndices.contains(currentNodeIndex);
 		if (added){
 			recordFrame(new AnimFrame([...highlightedNodeIndices], [...highlightedEdgeIndices], [], [{id: currentNodeIndex, angle:-Math.PI / 2}]));
 			addItemUnique(highlightedNodeIndices, currentNodeIndex)
@@ -153,7 +153,7 @@ async function BFS(){
 					recordFrame(new AnimFrame([...highlightedNodeIndices], [...highlightedEdgeIndices], [edgeIndex]));
 					highlightedEdgeIndices.push(edgeIndex);
 				}
-				let added = !highlightedEdgeIndices.contains(nodeIndex);
+				let added = !highlightedNodeIndices.contains(nodeIndex);
 				if (added){
 					const fromPos = nodes.get(nodeIndex)!.position;
 					const toPos   = nodes.get(currentNodeIndex)!.position;
@@ -166,7 +166,14 @@ async function BFS(){
 			}
 		}
 	}
-	console.log(timeline);
+	recordFrame(
+				new AnimFrame(
+					[...highlightedNodeIndices],
+					[...highlightedEdgeIndices],
+					[],
+					[]
+				)
+			);
 	highlightedNodeIndices = [];
 	highlightedEdges = [];
 	draw(window.performance.now());
