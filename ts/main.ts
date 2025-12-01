@@ -1437,14 +1437,14 @@ function updatePhysics() {
 			force = force.add(dir.mul(repulsion * falloff / (dist * dist)));
 		}
 
-		for (const e of edges) {
-			if (nodes.get(e[1].node1id)!.id === a.id || nodes.get(e[1].node2id)!.id === a.id) {
-				const other = nodes.get(e[1].node1id)!.id === a.id ? nodes.get(e[1].node2id)! : nodes.get(e[1].node2id)!;
+		for (const [id, edge] of edges) {
+			if (edge.node1id === a.id || edge.node2id === a.id) {
+				const other = edge.node1id === a.id ? nodes.get(edge.node2id)! : nodes.get(edge.node1id)!;
 				const delta = other.position.sub(a.position);
 				let dist = delta.magnitude || 0.001;
 				const dir = delta.div(dist);
 
-				const w = e[1].weight ?? 1;
+				const w = edge.weight ?? 1;
 				const weightedIdeal = idealDist * Math.sqrt(w);
 
 				const springForce = (dist - weightedIdeal) * spring;
